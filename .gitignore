@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Node
+node_modules/
+.env
+.env.local
+dist/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML models
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+
+# Docker
+.dockerignore
+
+# Database
+*.db
+*.sqlite
+
+# Chroma / Vector DB
+chroma/
+/tmp/chroma_*
