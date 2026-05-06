@@ -20,7 +20,8 @@ fi
 
 echo "[1/4] Setting up Backend..."
 cd backend
-pip install -r requirements.txt
+python3 -m venv ../.venv
+../.venv/bin/pip install -r requirements.txt
 cd ..
 
 echo ""
@@ -39,7 +40,7 @@ echo ""
 echo "[4/4] Setup complete!"
 echo ""
 echo "To start the backend:"
-echo "  cd backend && uvicorn main:app --reload"
+echo "  cd backend && ../.venv/bin/alembic upgrade head && ../.venv/bin/uvicorn main:app --reload"
 echo ""
 echo "To start the frontend:"
 echo "  cd frontend && npm run dev"

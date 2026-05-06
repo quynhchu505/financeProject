@@ -11,12 +11,18 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCards, setVisibleCards] = useState(0);
+  const [feedbackLoadingId, setFeedbackLoadingId] = useState<number | null>(null);
 
   useEffect(() => {
-    api.getDashboardStats()
-      .then((data) => setStats(data as DashboardStats))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const load = () => {
+      api.getDashboardStats()
+        .then((data) => setStats(data as DashboardStats))
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    };
+    load();
+    window.addEventListener('finance:data-changed', load);
+    return () => window.removeEventListener('finance:data-changed', load);
   }, []);
 
   useEffect(() => {
@@ -25,6 +31,19 @@ export default function Dashboard() {
       return () => clearTimeout(timer);
     }
   }, [loading, stats]);
+
+  const submitAnomalyFeedback = async (alertId: number, verdict: 'normal' | 'investigate') => {
+    try {
+      setFeedbackLoadingId(alertId);
+      await api.sendAnomalyFeedback(alertId, verdict);
+      const data = await api.getDashboardStats();
+      setStats(data as DashboardStats);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setFeedbackLoadingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -139,6 +158,41 @@ export default function Dashboard() {
                 <span className={`text-sm font-medium ml-2 flex-shrink-0 ${alert.percentage >= 100 ? 'text-red-600' : 'text-amber-600'}`}>
                   {alert.percentage}%
                 </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {stats.anomaly_alerts.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-fade-in-up">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <h3 className="font-semibold text-red-800 text-sm sm:text-base">Cảnh báo bất thường</h3>
+          </div>
+          <div className="space-y-2">
+            {stats.anomaly_alerts.map((alert) => (
+              <div key={alert.id} className="rounded-lg bg-white p-3 text-sm text-gray-700">
+                <div className="font-medium text-red-700">{alert.title}</div>
+                <div className="text-xs text-gray-500 mt-1">{alert.message}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => submitAnomalyFeedback(alert.id, 'normal')}
+                    disabled={feedbackLoadingId === alert.id}
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:border-green-200 hover:bg-green-50 hover:text-green-700 disabled:opacity-50"
+                  >
+                    {t('Bình thường')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitAnomalyFeedback(alert.id, 'investigate')}
+                    disabled={feedbackLoadingId === alert.id}
+                    className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {t('Cần điều tra')}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

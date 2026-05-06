@@ -1,13 +1,29 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
 from app.core.config import settings
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def mask_email(email: str) -> str:
+    if "@" not in email:
+        return "***"
+    name, domain = email.split("@", 1)
+    if len(name) <= 2:
+        return f"{name[:1]}***@{domain}"
+    return f"{name[:2]}***@{domain}"
 
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """Gửi email cảnh báo."""
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        print(f"[EMAIL DISABLED] Would send to {to_email}: {subject}")
+        logger.info(
+            "Email delivery skipped because SMTP is not configured",
+            extra={"extra_data": {"recipient": mask_email(to_email), "subject": subject}},
+        )
         return False
 
     try:
@@ -24,10 +40,16 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.send_message(msg)
 
-        print(f"[EMAIL SENT] to {to_email}: {subject}")
+        logger.info(
+            "Email sent",
+            extra={"extra_data": {"recipient": mask_email(to_email), "subject": subject}},
+        )
         return True
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+    except Exception:
+        logger.exception(
+            "Email delivery failed",
+            extra={"extra_data": {"recipient": mask_email(to_email), "subject": subject}},
+        )
         return False
 
 

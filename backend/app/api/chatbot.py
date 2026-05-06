@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from app.core.database import get_db
+from app.core.metrics import CHATBOT_DURATION, record_duration
+from app.core.rate_limit import rate_limit
 from app.models.models import User, ChatHistory, ChatSession
 from app.schemas.schemas import ChatMessage, ChatResponse
 from app.services.chatbot import FinanceChatbot
@@ -9,7 +12,11 @@ from app.api.deps import get_current_user
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
 
-@router.post("/chat", response_model=ChatResponse)
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(rate_limit(30, 60))])
 def chat(
     data: ChatMessage,
     db: Session = Depends(get_db),
@@ -17,7 +24,8 @@ def chat(
 ):
     """Chat with the financial advisor bot."""
     chatbot = FinanceChatbot(current_user.id)
-    result = chatbot.chat(data.message)
+    with record_duration(CHATBOT_DURATION):
+        result = chatbot.chat(data.message)
 
     session_id = data.session_id
 
@@ -47,7 +55,7 @@ def chat(
             session_id = session.id
         else:
             # Update session updated_at
-            session.updated_at = session.updated_at
+            session.updated_at = utcnow()
 
     # Save to history with session_id
     history = ChatHistory(

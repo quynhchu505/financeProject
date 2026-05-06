@@ -77,13 +77,15 @@ class CashFlowPredictor:
         self.model_expense.fit(X_scaled, y_expense)
 
         # Evaluate
-        from sklearn.metrics import mean_absolute_error, r2_score
+        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
         pred_income = self.model_income.predict(X_scaled)
         pred_expense = self.model_expense.predict(X_scaled)
 
         income_mae = mean_absolute_error(y_income, pred_income)
         expense_mae = mean_absolute_error(y_expense, pred_expense)
+        income_rmse = float(np.sqrt(mean_squared_error(y_income, pred_income)))
+        expense_rmse = float(np.sqrt(mean_squared_error(y_expense, pred_expense)))
         income_r2 = r2_score(y_income, pred_income)
         expense_r2 = r2_score(y_expense, pred_expense)
 
@@ -98,6 +100,8 @@ class CashFlowPredictor:
         return {
             "income_mae": float(income_mae),
             "expense_mae": float(expense_mae),
+            "income_rmse": income_rmse,
+            "expense_rmse": expense_rmse,
             "income_r2": float(income_r2),
             "expense_r2": float(expense_r2),
         }
@@ -155,12 +159,18 @@ class CashFlowPredictor:
 
             # Confidence decreases further into the future
             confidence = max(0.3, 1.0 - (i - 1) * 0.15)
+            income_margin = max(pred_income * (1 - confidence) * 0.35, 0)
+            expense_margin = max(pred_expense * (1 - confidence) * 0.35, 0)
 
             predictions.append({
                 "month": str(next_month),
                 "predicted_income": round(float(pred_income), 2),
                 "predicted_expense": round(float(pred_expense), 2),
                 "confidence": round(float(confidence), 2),
+                "lower_bound_income": round(float(max(pred_income - income_margin, 0)), 2),
+                "upper_bound_income": round(float(pred_income + income_margin), 2),
+                "lower_bound_expense": round(float(max(pred_expense - expense_margin, 0)), 2),
+                "upper_bound_expense": round(float(pred_expense + expense_margin), 2),
             })
 
         return predictions

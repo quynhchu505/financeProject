@@ -1,104 +1,96 @@
+from typing import Dict, List
+
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-from typing import List, Dict, Optional
-import pandas as pd
 
 
 class AnomalyDetector:
     def __init__(self, user_id: int):
         self.user_id = user_id
-        self.model = None
-        self.scaler = StandardScaler()
-        self.trained_categories = {}
+        self.models: dict[int, IsolationForest] = {}
+        self.scalers: dict[int, StandardScaler] = {}
+        self.stats: dict[int, dict[str, float]] = {}
 
     def train(self, transactions: List[dict]) -> dict:
-        """Train anomaly detection per category."""
         if len(transactions) < 20:
             return {"error": "Need at least 20 transactions to train"}
 
         df = pd.DataFrame(transactions)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date")
-
         results = {}
+
         for category_id, group in df.groupby("category_id"):
-            if len(group) < 5:
+            if category_id is None or len(group) < 5:
                 continue
 
-            # Features: amount, time of month, day of week
-            features = pd.DataFrame({
-                "amount": group["amount"].values,
-                "day_of_month": group["date"].dt.day.values,
-                "day_of_week": group["date"].dt.dayofweek.values,
-                "month": group["date"].dt.month.values,
-            })
+            features = pd.DataFrame(
+                {
+                    "amount": np.log1p(group["amount"].astype(float).values),
+                    "day_of_month": group["date"].dt.day.values,
+                    "day_of_week": group["date"].dt.dayofweek.values,
+                    "hour_of_day": group["date"].dt.hour.values,
+                }
+            )
 
-            X = self.scaler.fit_transform(features)
-            model = IsolationForest(contamination=0.1, random_state=42)
+            scaler = StandardScaler()
+            X = scaler.fit_transform(features)
+            model = IsolationForest(contamination=0.1, random_state=42, n_estimators=100)
             model.fit(X)
-            self.trained_categories[category_id] = model
 
-            # Stats
-            mean_amt = group["amount"].mean()
-            std_amt = group["amount"].std()
-            results[category_id] = {
-                "mean": float(mean_amt),
-                "std": float(std_amt) if std_amt > 0 else float(mean_amt * 0.3),
+            self.models[int(category_id)] = model
+            self.scalers[int(category_id)] = scaler
+            self.stats[int(category_id)] = {
+                "mean": float(group["amount"].mean()),
+                "std": float(group["amount"].std() or max(group["amount"].mean() * 0.2, 1)),
             }
+            results[int(category_id)] = self.stats[int(category_id)]
 
         return results
 
-    def detect(self, amount: float, category_id: int, day_of_month: int = None) -> Dict:
-        """Detect if a transaction is anomalous."""
-        if category_id not in self.trained_categories:
+    def detect(self, amount: float, category_id: int, day_of_month: int | None = None) -> Dict:
+        if category_id not in self.models:
             return {"is_anomaly": False, "severity": "none", "deviation": 0.0}
 
-        model = self.trained_categories[category_id]
-        cat_stats = self.model if hasattr(self, "_stats") else None
+        model = self.models[category_id]
+        scaler = self.scalers[category_id]
+        features = np.array([[np.log1p(amount), day_of_month or 15, 0, 12]])
+        X = scaler.transform(features)
+        prediction = model.predict(X)[0]
+        score = float(model.score_samples(X)[0])
+        deviation = abs(score)
 
-        # Build feature vector
-        features = np.array([[amount, day_of_month or 15, 0, 0]])
-        X = self.scaler.transform(features)
-        pred = model.predict(X)[0]
-        score = model.score_samples(X)[0]
-
-        if pred == -1:
-            # Calculate z-score approximation
-            severity = "low"
-            if score < -0.9:
+        if prediction == -1:
+            if deviation >= 0.75:
                 severity = "high"
-            elif score < -0.7:
+            elif deviation >= 0.55:
                 severity = "medium"
+            else:
+                severity = "low"
+            return {"is_anomaly": True, "severity": severity, "deviation": round(deviation, 3)}
 
-            return {
-                "is_anomaly": True,
-                "severity": severity,
-                "deviation": round(float(abs(score)), 3),
-            }
-
-        return {"is_anomaly": False, "severity": "none", "deviation": 0.0}
+        return {"is_anomaly": False, "severity": "none", "deviation": round(deviation, 3)}
 
     def get_budget_alerts(self, transactions: List[dict], budgets: List[dict]) -> List[Dict]:
-        """Check spending against budgets for anomalies."""
         alerts = []
         df = pd.DataFrame(transactions)
         if df.empty:
             return alerts
 
         df["date"] = pd.to_datetime(df["date"])
-        now = df["date"].max() if len(df) > 0 else pd.Timestamp.now()
-        start_of_month = now.replace(day=1)
-
+        start_of_month = df["date"].max().replace(day=1)
         df_month = df[df["date"] >= start_of_month]
         spending_by_cat = df_month.groupby("category_id")["amount"].sum()
 
         for budget in budgets:
             cat_id = budget["category_id"]
-            budget_amount = budget["amount"]
+            budget_amount = float(budget["amount"])
+            if budget_amount <= 0:
+                continue
             spent = float(spending_by_cat.get(cat_id, 0))
             percentage = (spent / budget_amount) * 100
-
             if percentage >= 100:
                 severity = "high"
             elif percentage >= 80:
@@ -106,14 +98,17 @@ class AnomalyDetector:
             else:
                 continue
 
-            alerts.append({
-                "category_id": cat_id,
-                "category_name": budget.get("category_name", "Unknown"),
-                "budget_amount": budget_amount,
-                "spent_amount": round(spent, 2),
-                "expected_amount": round(spent * 0.8, 2),
-                "percentage": round(percentage, 1),
-                "severity": severity,
-            })
+            alerts.append(
+                {
+                    "category_id": cat_id,
+                    "category_name": budget.get("category_name", "Unknown"),
+                    "budget_amount": budget_amount,
+                    "spent_amount": round(spent, 2),
+                    "expected_amount": round(budget_amount, 2),
+                    "actual_amount": round(spent, 2),
+                    "deviation": round(max(spent - budget_amount, 0), 2),
+                    "severity": severity,
+                }
+            )
 
         return alerts

@@ -1,0 +1,18 @@
+groups:
+  - name: finance-backend
+    rules:
+      - alert: FinanceBackendDown
+        expr: up{job="finance_backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Finance backend is down
+
+      - alert: FinanceHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 request latency is above 1s

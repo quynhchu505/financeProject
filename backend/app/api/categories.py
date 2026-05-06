@@ -1,10 +1,12 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
-from app.core.database import get_db
-from app.models.models import User, Category
-from app.schemas.schemas import CategoryCreate, CategoryUpdate, CategoryResponse
+
 from app.api.deps import get_current_user
+from app.core.database import get_db
+from app.models.models import Budget, Category, Transaction, User
+from app.schemas.schemas import CategoryCreate, CategoryResponse, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -29,9 +31,26 @@ def create_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    existing = (
+        db.query(Category)
+        .filter(Category.user_id == current_user.id, Category.name == data.name.strip())
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Tên danh mục đã tồn tại")
+
+    if data.parent_id is not None:
+        parent = (
+            db.query(Category)
+            .filter(Category.id == data.parent_id, Category.user_id == current_user.id)
+            .first()
+        )
+        if parent is None:
+            raise HTTPException(status_code=404, detail="Parent category not found")
+
     category = Category(
         user_id=current_user.id,
-        name=data.name,
+        name=data.name.strip(),
         icon=data.icon,
         color=data.color,
         parent_id=data.parent_id,
@@ -47,7 +66,11 @@ def init_default_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    existing = db.query(Category).filter(Category.user_id == current_user.id, Category.is_system == True).all()
+    existing = (
+        db.query(Category)
+        .filter(Category.user_id == current_user.id, Category.is_system.is_(True))
+        .all()
+    )
     if existing:
         return existing
 
@@ -73,13 +96,12 @@ def list_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    categories = (
+    return (
         db.query(Category)
         .filter(Category.user_id == current_user.id)
         .order_by(Category.name)
         .all()
     )
-    return categories
 
 
 @router.put("/{category_id}", response_model=CategoryResponse)
@@ -96,7 +118,32 @@ def update_category(
     )
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+
+    payload = data.model_dump(exclude_unset=True)
+    if "name" in payload:
+        duplicated = (
+            db.query(Category)
+            .filter(
+                Category.user_id == current_user.id,
+                Category.name == payload["name"].strip(),
+                Category.id != category_id,
+            )
+            .first()
+        )
+        if duplicated:
+            raise HTTPException(status_code=400, detail="Tên danh mục đã tồn tại")
+        payload["name"] = payload["name"].strip()
+
+    if "parent_id" in payload and payload["parent_id"] is not None:
+        parent = (
+            db.query(Category)
+            .filter(Category.id == payload["parent_id"], Category.user_id == current_user.id)
+            .first()
+        )
+        if parent is None:
+            raise HTTPException(status_code=404, detail="Parent category not found")
+
+    for field, value in payload.items():
         setattr(category, field, value)
     db.commit()
     db.refresh(category)
@@ -116,5 +163,22 @@ def delete_category(
     )
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    linked_transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.user_id == current_user.id,
+            Transaction.category_id == category_id,
+            Transaction.deleted_at.is_(None),
+        )
+        .count()
+    )
+    linked_budgets = db.query(Budget).filter(Budget.user_id == current_user.id, Budget.category_id == category_id).count()
+    if linked_transactions or linked_budgets:
+        raise HTTPException(
+            status_code=400,
+            detail="Không thể xóa danh mục đang liên kết với giao dịch hoặc ngân sách",
+        )
+
     db.delete(category)
     db.commit()

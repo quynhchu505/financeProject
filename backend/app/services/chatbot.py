@@ -1,272 +1,196 @@
-import os
-from typing import List, Optional
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import desc, func
+
 from app.core.config import settings
+from app.core.database import SessionLocal
+from app.models.models import Alert, Budget, Category, Transaction, TransactionType
 
 LANGCHAIN_GROQ_AVAILABLE = False
 LANGCHAIN_OLLAMA_AVAILABLE = False
 
 try:
     from langchain_groq import ChatGroq
+
     LANGCHAIN_GROQ_AVAILABLE = True
 except ImportError:
-    pass
+    ChatGroq = None
 
 try:
     from langchain_community.llms import Ollama
-    from langchain_community.vectorstores import Chroma
-    from langchain_community.embeddings import OllamaEmbeddings
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+
     LANGCHAIN_OLLAMA_AVAILABLE = True
 except ImportError:
-    pass
+    Ollama = None
 
 
 FINANCE_KNOWLEDGE = """
-# Hướng dẫn Quản lý Tài chính Cá nhân
+Nguyen tac 50/30/20:
+- 50% cho nhu cau thiet yeu
+- 30% cho mong muon
+- 20% cho tiet kiem va tra no
 
-## Nguyên tắc 50/30/20
-- 50% Thu nhập cho nhu cầu thiết yếu (nhà ở, thực phẩm, đi lại)
-- 30% Thu nhập cho mong muốn (giải trí, mua sắm)
-- 20% Thu nhập cho tiết kiệm và trả nợ
-
-## Mẹo Tiết kiệm
-1. Lập ngân sách hàng tháng và theo dõi chi tiêu
-2. Trả tiền cho bản thân trước - ngay khi nhận lương, hãy chuyển tiền tiết kiệm trước
-3. Theo dõi mọi khoản chi tiêu nhỏ - chúng tích lũy thành số lớn
-4. Giảm chi tiêu không cần thiết (đi ăn ngoài, mua sắm冲动)
-5. Tự nấu ăn thay vì ăn ngoài
-6. Sử dụng phương tiện công cộng hoặc đi xe đạp
-7. Mua hàng secondhand hoặc so sánh giá trước khi mua
-
-## Quỹ khẩn cấp
-- Nên có quỹ khẩn cấp bằng 3-6 tháng chi phí sinh hoạt
-- Đặt trong tài khoản tiết kiệm dễ truy cập
-- Chỉ sử dụng cho trường hợp thực sự khẩn cấp
-
-## Trả nợ
-- Ưu tiên trả nợ lãi suất cao trước (phương pháp avalanche)
-- Hoặc trả nợ nhỏ trước để tạo động lực (phương pháp snowball)
-- Không tích lũy thêm nợ mới
-
-## Đầu tư cơ bản
-- Đa dạng hóa danh mục đầu tư
-- Đầu tư định kỳ (dollar-cost averaging)
-- Hiểu rõ mức độ rủi ro có thể chấp nhận
-- Đầu tư dài hạn thay vì ngắn hạn
-- ETF và quỹ chỉ số là lựa chọn tốt cho người mới
-
-## Theo dõi Chi tiêu
-- Ghi chép mọi khoản thu chi hàng ngày
-- Phân loại chi tiêu theo danh mục
-- Đánh giá và điều chỉnh ngân sách hàng tháng
-- Sử dụng ứng dụng quản lý tài chính
-
-## Mục tiêu Tài chính
-1. Xác định mục tiêu ngắn hạn (mua xe, du lịch)
-2. Mục tiêu trung hạn (mua nhà, kinh doanh)
-3. Mục tiêu dài hạn (nghỉ hưu, tự do tài chính)
-4. Đặt ra số tiền cụ thể và thời hạn cho từng mục tiêu
+Goi y:
+- Lap ngan sach hang thang
+- Tao quy khan cap 3-6 thang chi phi sinh hoat
+- Theo doi giao dich thu/chi thuong xuyen
+- Giam chi phi co the cat bo
+- Tra no lai suat cao truoc
 """
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class FinanceChatbot:
     def __init__(self, user_id: int):
         self.user_id = user_id
-        self.llm = None
-        self.qa_chain = None
         self.provider = settings.LLM_PROVIDER
-        self._setup()
+        self.llm = self._setup_llm()
 
-    def _setup(self):
+    def _setup_llm(self):
         if self.provider == "groq" and LANGCHAIN_GROQ_AVAILABLE and settings.GROQ_API_KEY:
-            self._setup_groq()
-        elif self.provider == "ollama" and LANGCHAIN_OLLAMA_AVAILABLE:
-            self._setup_ollama()
-        else:
-            # Fallback: try groq if key exists
-            if settings.GROQ_API_KEY and LANGCHAIN_GROQ_AVAILABLE:
-                self._setup_groq()
-            elif LANGCHAIN_OLLAMA_AVAILABLE:
-                self._setup_ollama()
-
-    def _setup_groq(self):
-        try:
-            from langchain_core.prompts import ChatPromptTemplate
-            from langchain_core.runnables import RunnablePassthrough
-            from langchain_core.output_parsers import StrOutputParser
-            from langchain.text_splitter import RecursiveCharacterTextSplitter
-            from langchain_community.vectorstores import Chroma
-            from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-
-            self.llm = ChatGroq(
+            return ChatGroq(
                 api_key=settings.GROQ_API_KEY,
                 model="llama-3.1-8b-instant",
-                temperature=0.7,
+                temperature=0.4,
+            )
+        if self.provider == "ollama" and LANGCHAIN_OLLAMA_AVAILABLE:
+            return Ollama(
+                model="llama3",
+                base_url=settings.OLLAMA_BASE_URL,
+                temperature=0.4,
+            )
+        if settings.GROQ_API_KEY and LANGCHAIN_GROQ_AVAILABLE:
+            return ChatGroq(
+                api_key=settings.GROQ_API_KEY,
+                model="llama-3.1-8b-instant",
+                temperature=0.4,
+            )
+        if LANGCHAIN_OLLAMA_AVAILABLE:
+            return Ollama(
+                model="llama3",
+                base_url=settings.OLLAMA_BASE_URL,
+                temperature=0.4,
+            )
+        return None
+
+    def _can_send_personal_context(self) -> bool:
+        if self.provider == "ollama":
+            return True
+        return settings.ALLOW_EXTERNAL_FINANCE_CONTEXT
+
+    def _build_user_context(self) -> str:
+        if not self._can_send_personal_context():
+            return (
+                "Khong gui du lieu tai chinh ca nhan vi provider hien tai duoc coi la external. "
+                "Chi duoc tra loi dua tren kien thuc tai chinh chung."
             )
 
-            # Create embeddings using a local model
-            embeddings = HuggingFaceBgeEmbeddings(
-                model_name="BAAI/bge-small-zh-v1.5",
-                model_kwargs={"device": "cpu"},
-                encode_kwargs={"normalize_embeddings": True},
-            )
-
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500,
-                chunk_overlap=50,
-            )
-            texts = text_splitter.split_text(FINANCE_KNOWLEDGE)
-
-            vectorstore = Chroma.from_texts(
-                texts=texts,
-                embedding=embeddings,
-                persist_directory=f"/tmp/chroma_groq_{self.user_id}",
-            )
-
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-
-            prompt_template = """Bạn là một chuyên gia tư vấn tài chính cá nhân.
-Dựa trên thông tin sau, hãy trả lời câu hỏi của người dùng một cách hữu ích và chi tiết.
-
-Ngữ cảnh:
-{context}
-
-Câu hỏi: {question}
-
-Trả lời (bằng tiếng Việt):"""
-
-            prompt = ChatPromptTemplate.from_template(prompt_template)
-
-            self.qa_chain = (
-                {"context": retriever, "question": RunnablePassthrough()}
-                | prompt
-                | self.llm
-                | StrOutputParser()
-            )
-        except Exception as e:
-            print(f"Groq setup failed: {e}")
-            self.qa_chain = None
-
-    def _setup_ollama(self):
-        if not LANGCHAIN_OLLAMA_AVAILABLE:
-            return
+        db = SessionLocal()
         try:
-            self.llm = Ollama(
-                model="llama3",
-                base_url=settings.OLLAMA_BASE_URL,
-                temperature=0.7,
+            now = utcnow()
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            income = (
+                db.query(func.coalesce(func.sum(Transaction.amount), 0))
+                .filter(
+                    Transaction.user_id == self.user_id,
+                    Transaction.deleted_at.is_(None),
+                    Transaction.transaction_type == TransactionType.INCOME.value,
+                    Transaction.date >= month_start,
+                )
+                .scalar()
+            )
+            expense = (
+                db.query(func.coalesce(func.sum(Transaction.amount), 0))
+                .filter(
+                    Transaction.user_id == self.user_id,
+                    Transaction.deleted_at.is_(None),
+                    Transaction.transaction_type == TransactionType.EXPENSE.value,
+                    Transaction.date >= month_start,
+                )
+                .scalar()
             )
 
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500,
-                chunk_overlap=50,
-            )
-            texts = text_splitter.split_text(FINANCE_KNOWLEDGE)
-
-            embeddings = OllamaEmbeddings(
-                model="llama3",
-                base_url=settings.OLLAMA_BASE_URL,
-            )
-
-            vectorstore = Chroma.from_texts(
-                texts=texts,
-                embedding=embeddings,
-                persist_directory=f"/tmp/chroma_ollama_{self.user_id}",
+            top_categories = (
+                db.query(Category.name, func.sum(Transaction.amount).label("total"))
+                .join(Transaction, Transaction.category_id == Category.id)
+                .filter(
+                    Transaction.user_id == self.user_id,
+                    Transaction.deleted_at.is_(None),
+                    Transaction.transaction_type == TransactionType.EXPENSE.value,
+                    Transaction.date >= month_start,
+                )
+                .group_by(Category.id, Category.name)
+                .order_by(desc("total"))
+                .limit(3)
+                .all()
             )
 
-            from langchain.prompts import PromptTemplate
-            prompt_template = """Bạn là một chuyên gia tư vấn tài chính cá nhân.
-Dựa trên thông tin sau, hãy trả lời câu hỏi của người dùng một cách hữu ích và chi tiết.
+            active_budget_count = db.query(Budget).filter(Budget.user_id == self.user_id).count()
+            open_alert_count = db.query(Alert).filter(Alert.user_id == self.user_id, Alert.is_resolved.is_(False)).count()
 
-Ngữ cảnh:
-{context}
+            top_lines = "\n".join([f"- {name}: {float(total):,.0f} VND" for name, total in top_categories]) or "- Chua co"
 
-Câu hỏi: {question}
-
-Trả lời (bằng tiếng Việt):"""
-
-            PROMPT = PromptTemplate(
-                template=prompt_template,
-                input_variables=["context", "question"],
+            return (
+                f"Tom tat tai chinh thang nay:\n"
+                f"- Tong thu: {float(income):,.0f} VND\n"
+                f"- Tong chi: {float(expense):,.0f} VND\n"
+                f"- So ngan sach dang theo doi: {active_budget_count}\n"
+                f"- So canh bao dang mo: {open_alert_count}\n"
+                f"- Top danh muc chi tieu:\n{top_lines}"
             )
+        finally:
+            db.close()
 
-            from langchain.chains.combine_documents import create_stuff_documents_chain
-            document_chain = create_stuff_documents_chain(self.llm, PROMPT)
-            from langchain.chains.retrieval import create_retrieval_chain
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-            self.qa_chain = create_retrieval_chain(retriever, document_chain)
-        except Exception as e:
-            print(f"Ollama setup failed: {e}")
-            self.qa_chain = None
+    def _build_prompt(self, message: str) -> str:
+        context = self._build_user_context()
+        return (
+            "Ban la tro ly tai chinh ca nhan, tra loi bang tieng Viet, ngan gon, thuc te, "
+            "khong dua ra loi khuyen dau tu mang tinh cam ket.\n\n"
+            f"Kien thuc nen:\n{FINANCE_KNOWLEDGE}\n\n"
+            f"Ngu canh nguoi dung:\n{context}\n\n"
+            f"Cau hoi:\n{message}\n\n"
+            "Tra loi:"
+        )
 
     def chat(self, message: str) -> dict:
-        if self.qa_chain is None:
-            response = self._fallback_response(message)
-            return {"response": response, "sources": []}
+        prompt = self._build_prompt(message)
+        if self.llm is None:
+            return {"response": self._fallback_response(message), "sources": []}
 
         try:
-            result = self.qa_chain.invoke(message)
+            result = self.llm.invoke(prompt)
+            if hasattr(result, "content"):
+                return {"response": result.content, "sources": []}
             if isinstance(result, str):
                 return {"response": result, "sources": []}
-            return {
-                "response": result.get("answer", result),
-                "sources": [],
-            }
-        except Exception as e:
-            print(f"Chat error: {e}")
+            return {"response": str(result), "sources": []}
+        except Exception:
             return {"response": self._fallback_response(message), "sources": []}
 
     def _fallback_response(self, message: str) -> str:
         msg_lower = message.lower()
         if any(kw in msg_lower for kw in ["tiết kiệm", "tiet kiem", "save"]):
             return (
-                "Để tiết kiệm hiệu quả, bạn nên:\n"
-                "1. Áp dụng quy tắc 50/30/20: 50% thu nhập cho nhu cầu, 30% cho mong muốn, 20% cho tiết kiệm.\n"
-                "2. Tự động chuyển tiền tiết kiệm ngay khi nhận lương.\n"
-                "3. Theo dõi chi tiêu hàng ngày để phát hiện khoản chi không cần thiết.\n"
-                "4. Thiết lập quỹ khẩn cấp bằng 3-6 tháng chi phí sinh hoạt."
+                "De tiet kiem hieu qua, ban nen ap dung quy tac 50/30/20, "
+                "chuyen tien tiet kiem ngay khi nhan thu nhap va theo doi nhung khoan chi lap lai."
             )
-        elif any(kw in msg_lower for kw in ["đầu tư", "dau tu", "invest"]):
+        if any(kw in msg_lower for kw in ["đầu tư", "dau tu", "invest"]):
             return (
-                "Về đầu tư cơ bản:\n"
-                "1. Đa dạng hóa danh mục để giảm rủi ro.\n"
-                "2. Đầu tư định kỳ (dollar-cost averaging) thay vì all-in.\n"
-                "3. ETF và quỹ chỉ số là lựa chọn tốt cho người mới bắt đầu.\n"
-                "4. Đầu tư dài hạn, không react theo biến động ngắn hạn.\n"
-                "5. Hiểu rõ mức độ rủi ro bạn có thể chấp nhận."
+                "Neu moi bat dau, hay uu tien quy khan cap, tranh no xau, "
+                "sau do moi xem cac kenh dau tu da dang va phu hop muc rui ro cua ban."
             )
-        elif any(kw in msg_lower for kw in ["ngân sách", "ngan sach", "budget", "chi tiêu", "chi tieu"]):
+        if any(kw in msg_lower for kw in ["ngân sách", "ngan sach", "budget", "chi tiêu", "chi tieu"]):
             return (
-                "Để quản lý ngân sách hiệu quả:\n"
-                "1. Ghi chép mọi khoản thu chi hàng ngày.\n"
-                "2. Phân loại chi tiêu theo danh mục (ăn uống, di chuyển, giải trí...).\n"
-                "3. Đặt giới hạn chi tiêu cho từng danh mục.\n"
-                "4. Đánh giá và điều chỉnh ngân sách hàng tháng.\n"
-                "5. Ưu tiên chi tiêu cho nhu cầu thiết yếu trước."
+                "Ban nen dat han muc theo danh muc, theo doi chi phi hang ngay va danh gia lai moi cuoi thang "
+                "de cat bo cac khoan vuot nhu cau."
             )
-        elif any(kw in msg_lower for kw in ["nợ", "no", "trả nợ", "tra no", "debt"]):
-            return (
-                "Về quản lý nợ:\n"
-                "1. Ưu tiên trả nợ lãi suất cao trước (phương pháp avalanche).\n"
-                "2. Hoặc trả nợ nhỏ trước để tạo động lực (phương pháp snowball).\n"
-                "3. Không tích lũy thêm nợ mới trong khi trả nợ cũ.\n"
-                "4. Thương lượng lãi suất thấp hơn với ngân hàng nếu có thể."
-            )
-        elif any(kw in msg_lower for kw in ["quỹ khẩn cấp", "quy khan cap", "emergency"]):
-            return (
-                "Quỹ khẩn cấp nên có:\n"
-                "1. Số tiền bằng 3-6 tháng chi phí sinh hoạt.\n"
-                "2. Đặt trong tài khoản tiết kiệm dễ truy cập.\n"
-                "3. Chỉ sử dụng cho trường hợp thực sự khẩn cấp (mất việc, bệnh tật, sửa nhà gấp).\n"
-                "4. Bổ sung lại quỹ sau khi sử dụng."
-            )
-        else:
-            return (
-                "Tôi có thể tư vấn về:\n"
-                "- Tiết kiệm và quỹ khẩn cấp\n"
-                "- Lập kế hoạch ngân sách\n"
-                "- Quản lý và trả nợ\n"
-                "- Đầu tư cơ bản\n"
-                "- Mục tiêu tài chính\n\n"
-                "Bạn muốn hỏi về chủ đề nào?"
-            )
+        return (
+            "Toi co the ho tro ve ngan sach, tiet kiem, quy khan cap, quan ly no va muc tieu tai chinh. "
+            "Ban hay noi ro hon muc ban muon hoi."
+        )

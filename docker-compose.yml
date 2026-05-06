@@ -1,72 +1,113 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: finance_db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: finance_user
-      POSTGRES_PASSWORD: finance_password
-      POSTGRES_DB: finance_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-finance_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance_password}
+      POSTGRES_DB: ${POSTGRES_DB:-finance_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finance_user -d finance_db"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finance_user} -d ${POSTGRES_DB:-finance_db}"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
     container_name: finance_redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: finance_backend
+    restart: unless-stopped
     env_file:
-      - ./backend/.env
+      - .env
     environment:
-      DATABASE_URL: postgresql://finance_user:finance_password@postgres:5432/finance_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-finance_user}:${POSTGRES_PASSWORD:-finance_password}@postgres:5432/${POSTGRES_DB:-finance_db}
       REDIS_URL: redis://redis:6379
-      SECRET_KEY: your-secret-key-change-in-production
-      DEBUG: "true"
-    ports:
-      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - ./backend:/app
       - ml_models:/app/ai/models
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost}
     container_name: finance_frontend
-    environment:
-      VITE_API_URL: http://localhost:8000
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: finance_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
     depends_on:
       - backend
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: finance_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:
   redis_data:
   ml_models:
+  prometheus_data:
+  grafana_data:

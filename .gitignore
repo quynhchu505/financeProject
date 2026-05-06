@@ -6,42 +6,99 @@ __pycache__/
 env/
 venv/
 .venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
 *.egg-info/
 dist/
 build/
 .eggs/
 
-# Node
+# Node / frontend
 node_modules/
-.env
-.env.local
-dist/
+.npm/
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.vite/
+coverage/
+*.tsbuildinfo
+vite.svg
 *.log
+*.eslintcache
 
-# IDE
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / editor
 .vscode/
 .idea/
+.vscode-test/
 *.swp
 *.swo
 
-# OS
+# OS / system
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# ML models
+# Local agent / tooling state
+.claude/
+.opencode/
+
+# Generated reports / exports
+*.docx
+*.pdf
+*.pptx
+*.xlsx
+BaoCao_*.docx
+BaoCao_*.pdf
+report/*.docx
+report/*.pdf
+
+# ML models / artifacts
+backend/ai/models/
 *.pkl
 *.joblib
 *.h5
+*.keras
+*.onnx
 *.pt
 *.pth
+*.ckpt
+*.safetensors
+*.tflite
 
-# Docker
+# Docker / runtime
 .dockerignore
+.envrc
+*.pid
+*.seed
+*.out
+*.stackdump
 
-# Database
+# Database / cache
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sqlite
-
-# Chroma / Vector DB
+*.sqlite3
 chroma/
 /tmp/chroma_*

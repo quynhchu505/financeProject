@@ -26,7 +26,7 @@ export interface Category {
   is_system: boolean;
 }
 
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense' | 'transfer';
 export type BudgetPeriod = 'weekly' | 'monthly' | 'yearly';
 
 export interface Transaction {
@@ -39,6 +39,7 @@ export interface Transaction {
   description: string | null;
   date: string;
   is_ai_categorized: boolean;
+  ai_confidence?: number | null;
   created_at: string;
   category?: Category;
 }
@@ -67,6 +68,7 @@ export interface DashboardStats {
   top_categories: { name: string; color: string; amount: number }[];
   recent_transactions: Transaction[];
   budget_alerts: BudgetProgress[];
+  anomaly_alerts: AlertItem[];
 }
 
 export interface MonthlyReport {
@@ -120,4 +122,31 @@ export interface CashFlowPrediction {
   predicted_income: number;
   predicted_expense: number;
   confidence: number;
+  lower_bound_income?: number;
+  upper_bound_income?: number;
+  lower_bound_expense?: number;
+  upper_bound_expense?: number;
+}
+
+export interface AlertItem {
+  id: number;
+  user_id: number;
+  transaction_id: number | null;
+  budget_id: number | null;
+  alert_type: string;
+  severity: string;
+  title: string;
+  message: string;
+  anomaly_score: number | null;
+  is_read: boolean;
+  is_resolved: boolean;
+  created_at: string;
+}
+
+export interface PaginatedTransactions {
+  items: Transaction[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
 }

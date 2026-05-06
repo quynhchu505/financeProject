@@ -1,0 +1,23 @@
+{
+  "name": "datn",
+  "version": "1.0.0",
+  "description": "## Tech Stack - **Frontend**: React + TypeScript + Vite - **Backend**: Python FastAPI - **Database**: PostgreSQL + Redis - **AI/ML**: scikit-learn, TensorFlow/PyTorch, LangChain - **Authentication**: JWT",
+  "main": "build_report.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vankhangk4/H-TH-NG-QU-N-L-V-PH-N-T-CH-T-I-CH-NH-C-NH-N-TH-NG-MINH.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vankhangk4/H-TH-NG-QU-N-L-V-PH-N-T-CH-T-I-CH-NH-C-NH-N-TH-NG-MINH/issues"
+  },
+  "homepage": "https://github.com/vankhangk4/H-TH-NG-QU-N-L-V-PH-N-T-CH-T-I-CH-NH-C-NH-N-TH-NG-MINH#readme",
+  "dependencies": {
+    "docx": "^9.6.1"
+  }
+}

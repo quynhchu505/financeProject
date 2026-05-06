@@ -1,53 +1,72 @@
-import { useState, useEffect } from 'react';
-import { api } from '@/services/api';
-import { Transaction, Category, Account, TransactionType } from '@/types';
-import { Plus, Trash2, X, Sparkles, Wallet, Pencil, ArrowLeftRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import {
+  ArrowLeftRight,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react';
+
+import { api } from '@/services/api';
+import { Account, Category, PaginatedTransactions, Transaction, TransactionType } from '@/types';
 import { useI18n } from '@/i18n';
+
+type TransactionForm = {
+  account_id: string;
+  category_id: string;
+  amount: string;
+  transaction_type: Exclude<TransactionType, 'transfer'>;
+  description: string;
+  date: string;
+};
+
+const emptyTransactionForm = (): TransactionForm => ({
+  account_id: '',
+  category_id: '',
+  amount: '',
+  transaction_type: 'expense',
+  description: '',
+  date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+});
 
 export default function Transactions() {
   const { t } = useI18n();
-
-  const ACCOUNT_TYPES = [
-    { value: 'cash', label: t('Tiền mặt') },
-    { value: 'checking', label: t('Tài khoản ngân hàng') },
-    { value: 'savings', label: t('Tiết kiệm') },
-    { value: 'credit', label: t('Thẻ tín dụng') },
-  ];
-
-  // Shadowing alias for i18n to avoid conflict with array.find callback
-  const __ = t;
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<PaginatedTransactions | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [accountError, setAccountError] = useState('');
-  const [accountForm, setAccountForm] = useState({
-    name: '',
-    account_type: 'cash',
-  });
-  const [form, setForm] = useState<{
-    account_id: string;
-    category_id: string;
-    amount: string;
-    transaction_type: TransactionType;
-    description: string;
-    date: string;
-  }>({
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState({
+    q: '',
     account_id: '',
     category_id: '',
-    amount: '',
-    transaction_type: 'expense',
-    description: '',
-    date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    transaction_type: '',
+    start_date: '',
+    end_date: '',
   });
+  const [page, setPage] = useState(1);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [form, setForm] = useState<TransactionForm>(emptyTransactionForm());
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<{ category_id: number; category_name: string; confidence: number } | null>(null);
+
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [accountForm, setAccountForm] = useState({ name: '', account_type: 'cash' });
+
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
+  const [transferError, setTransferError] = useState('');
   const [transferForm, setTransferForm] = useState({
     from_account_id: '',
     to_account_id: '',
@@ -55,72 +74,175 @@ export default function Transactions() {
     description: '',
     date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
   });
-  const [transferError, setTransferError] = useState('');
+
+  const accountTypeOptions = useMemo(
+    () => [
+      { value: 'cash', label: t('Tiền mặt') },
+      { value: 'checking', label: t('Tài khoản ngân hàng') },
+      { value: 'savings', label: t('Tiết kiệm') },
+      { value: 'credit', label: t('Thẻ tín dụng') },
+    ],
+    [t]
+  );
 
   useEffect(() => {
-    loadData();
+    loadReferenceData();
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    loadTransactions();
+  }, [page, filters.account_id, filters.category_id, filters.transaction_type, filters.start_date, filters.end_date]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      loadTransactions();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters.q]);
+
+  useEffect(() => {
+    if (!showModal || !form.description.trim()) {
+      setAiSuggestion(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setAiLoading(true);
+        const result = await api.categorizeTransaction(form.description, form.amount ? Number(form.amount) : undefined);
+        setAiSuggestion(result);
+        setForm((current) => ({
+          ...current,
+          category_id: result.should_autofill && !current.category_id ? String(result.category_id) : current.category_id,
+        }));
+      } catch {
+        setAiSuggestion(null);
+      } finally {
+        setAiLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [showModal, form.description, form.amount]);
+
+  const loadReferenceData = async () => {
     try {
-      const [txs, cats, accs] = await Promise.all([
-        api.getTransactions(),
-        api.getCategories(),
-        api.getAccounts(),
-      ]);
-      setTransactions(txs as Transaction[]);
+      const [cats, accs] = await Promise.all([api.getCategories(), api.getAccounts()]);
       setCategories(cats as Category[]);
       setAccounts(accs as Account[]);
-    } catch (e) {
-      console.error(e);
+    } catch (err: any) {
+      setError(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const loadTransactions = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getTransactions({
+        q: filters.q,
+        account_id: filters.account_id ? Number(filters.account_id) : undefined,
+        category_id: filters.category_id ? Number(filters.category_id) : undefined,
+        transaction_type: filters.transaction_type || undefined,
+        start_date: filters.start_date ? new Date(filters.start_date).toISOString() : undefined,
+        end_date: filters.end_date ? new Date(filters.end_date).toISOString() : undefined,
+        page,
+        page_size: 10,
+      });
+      setTransactions(data as PaginatedTransactions);
+    } catch (err: any) {
+      setError(err.message || t('Có lỗi xảy ra'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetTransactionModal = () => {
+    setEditingTransaction(null);
+    setForm(emptyTransactionForm());
+    setAiSuggestion(null);
+    setShowModal(false);
+  };
+
+  const openEditModal = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setForm({
+      account_id: String(transaction.account_id),
+      category_id: transaction.category_id ? String(transaction.category_id) : '',
+      amount: String(transaction.amount),
+      transaction_type: (transaction.transaction_type === 'income' ? 'income' : 'expense'),
+      description: transaction.description || '',
+      date: format(new Date(transaction.date), "yyyy-MM-dd'T'HH:mm"),
+    });
+    setShowModal(true);
+  };
+
+  const notifyDataChanged = () => {
+    window.dispatchEvent(new Event('finance:data-changed'));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const payload = {
+        account_id: Number(form.account_id),
+        category_id: form.category_id ? Number(form.category_id) : undefined,
+        amount: Number(form.amount),
+        transaction_type: form.transaction_type,
+        description: form.description || undefined,
+        date: new Date(form.date).toISOString(),
+        is_ai_categorized: !!aiSuggestion && !!form.category_id && Number(form.category_id) === aiSuggestion.category_id,
+        ai_confidence: aiSuggestion?.confidence,
+      };
+
+      if (editingTransaction) {
+        await api.updateTransaction(editingTransaction.id, payload);
+        setMessage(t('Lưu thay đổi'));
+      } else {
+        await api.createTransaction(payload);
+        setMessage(t('Lưu giao dịch'));
+      }
+
+      notifyDataChanged();
+      resetTransactionModal();
+      await loadTransactions();
+      await loadReferenceData();
+    } catch (err: any) {
+      setError(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm(t('Xóa giao dịch này?'))) return;
+    try {
+      await api.deleteTransaction(id);
+      setMessage(t('Xóa'));
+      notifyDataChanged();
+      await loadTransactions();
+      await loadReferenceData();
+    } catch (err: any) {
+      setError(err.message || t('Có lỗi xảy ra'));
     }
   };
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountLoading(true);
+    setAccountError('');
     try {
-      await api.createAccount({
-        name: accountForm.name,
-        account_type: accountForm.account_type,
-      });
-      setShowAccountModal(false);
-      setAccountForm({ name: '', account_type: 'cash' });
-      setAccountError('');
-      await loadData();
-    } catch (e: any) {
-      setAccountError(e.message || t('Có lỗi xảy ra'));
-    } finally {
-      setAccountLoading(false);
-    }
-  };
-
-  const handleEditAccount = (acc: Account) => {
-    setEditingAccount(acc);
-    setAccountForm({
-      name: acc.name,
-      account_type: acc.account_type,
-    });
-    setShowAccountModal(true);
-  };
-
-  const handleUpdateAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingAccount) return;
-    setAccountLoading(true);
-    try {
-      await api.updateAccount(editingAccount.id, {
-        name: accountForm.name,
-        account_type: accountForm.account_type,
-      });
+      if (editingAccount) {
+        await api.updateAccount(editingAccount.id, {
+          name: accountForm.name,
+          account_type: accountForm.account_type,
+        });
+      } else {
+        await api.createAccount(accountForm);
+      }
       setShowAccountModal(false);
       setEditingAccount(null);
       setAccountForm({ name: '', account_type: 'cash' });
-      await loadData();
-    } catch (e) {
-      console.error(e);
+      await loadReferenceData();
+    } catch (err: any) {
+      setAccountError(err.message || t('Có lỗi xảy ra'));
     } finally {
       setAccountLoading(false);
     }
@@ -130,56 +252,10 @@ export default function Transactions() {
     if (!confirm(t('Xóa tài khoản này? Tất cả giao dịch liên quan sẽ bị xóa.'))) return;
     try {
       await api.deleteAccount(id);
-      await loadData();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.createTransaction({
-        account_id: Number(form.account_id),
-        category_id: form.category_id ? Number(form.category_id) : undefined,
-        amount: Number(form.amount),
-        transaction_type: form.transaction_type,
-        description: form.description || undefined,
-        date: new Date(form.date).toISOString(),
-      });
-      setShowModal(false);
-      setForm({ account_id: '', category_id: '', amount: '', transaction_type: 'expense', description: '', date: format(new Date(), "yyyy-MM-dd'T'HH:mm") });
-      await loadData();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm(t('Xóa giao dịch này?'))) return;
-    await api.deleteTransaction(id);
-    await loadData();
-  };
-
-  const handleAICategorize = async () => {
-    if (!form.description) return;
-    setAiLoading(true);
-    try {
-      const result = await api.categorizeTransaction(form.description, form.amount ? Number(form.amount) : undefined) as any;
-      setForm((f) => ({ ...f, category_id: String(result.category_id) }));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const handleInitCategories = async () => {
-    try {
-      await api.initDefaultCategories();
-      await loadData();
-    } catch (e) {
-      console.error(e);
+      await loadReferenceData();
+      await loadTransactions();
+    } catch (err: any) {
+      setError(err.message || t('Có lỗi xảy ra'));
     }
   };
 
@@ -196,502 +272,356 @@ export default function Transactions() {
         date: new Date(transferForm.date).toISOString(),
       });
       setShowTransferModal(false);
-      setTransferForm({ from_account_id: '', to_account_id: '', amount: '', description: '', date: format(new Date(), "yyyy-MM-dd'T'HH:mm") });
-      await loadData();
+      setTransferForm({
+        from_account_id: '',
+        to_account_id: '',
+        amount: '',
+        description: '',
+        date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      });
+      await loadReferenceData();
+      await loadTransactions();
     } catch (err: any) {
-      setTransferError(err.message || t('Chuyển tiền thất bại'));
+      setTransferError(err.message || t('Có lỗi xảy ra'));
     } finally {
       setTransferLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  const totalPages = transactions?.pages || 1;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 animate-fade-in-up">{t('Giao dịch')}</h1>
-        <div className="flex flex-wrap gap-2 w-full xs:w-auto">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">{t('Giao dịch')}</h1>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setShowAccountModal(true)}
-            className="flex items-center gap-2 bg-green-600 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg hover:bg-green-700 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm w-full xs:w-auto justify-center"
+            className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
-            <Wallet className="w-4 h-4" />
-            <span className="hidden xs:inline">{t('Tạo tài khoản')}</span>
-            <span className="xs:hidden">+ {t('Tài khoản')}</span>
+            <Wallet className="h-4 w-4" />
+            {t('Tạo tài khoản')}
           </button>
           <button
             onClick={() => setShowTransferModal(true)}
-            className="flex items-center gap-2 bg-purple-600 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg hover:bg-purple-700 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm w-full xs:w-auto justify-center"
+            className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
           >
-            <ArrowLeftRight className="w-4 h-4" />
-            <span className="hidden xs:inline">{t('Chuyển tiền')}</span>
-            <span className="xs:hidden">{t('Chuyển')}</span>
+            <ArrowLeftRight className="h-4 w-4" />
+            {t('Chuyển tiền')}
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm w-full xs:w-auto justify-center"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden xs:inline">{t('Thêm giao dịch')}</span>
-            <span className="xs:hidden">+ {t('Giao dịch')}</span>
+            <Plus className="h-4 w-4" />
+            {t('Thêm giao dịch')}
           </button>
         </div>
       </div>
 
-      {/* Accounts display */}
-      {accounts.length > 0 && (
-        <div className="space-y-2 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <span className="text-xs sm:text-sm font-medium text-gray-700">{t('Tài khoản của bạn:')}</span>
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-            {accounts.map((acc, idx) => (
-              <div key={acc.id} className="px-3 sm:px-4 py-2.5 sm:py-3 bg-white rounded-lg sm:rounded-xl border border-gray-200 text-sm flex items-center justify-between card-hover animate-fade-in" style={{ animationDelay: `${idx * 60}ms` }}>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-gray-800 text-xs sm:text-sm truncate">{acc.name}</div>
-                  <div className="text-gray-500 text-xs hidden sm:block">
-                    {ACCOUNT_TYPES.find(a => a.value === acc.account_type)?.label || acc.account_type}
-                  </div>
-                  <div className="text-primary-600 font-semibold mt-0.5 text-xs sm:text-sm">
-                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(acc.balance)}
-                  </div>
-                </div>
-                <div className="flex gap-1 ml-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleEditAccount(acc)}
-                    className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all duration-200 active:scale-90"
-                    title={t('Sửa')}
-                  >
-                    <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAccount(acc.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 active:scale-90"
-                    title={t('Xóa')}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+      {message && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+      <section className="grid gap-3 rounded-xl bg-white p-4 shadow-sm md:grid-cols-6">
+        <label className="md:col-span-2">
+          <span className="sr-only">{t('Mô tả')}</span>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2">
+            <Search className="h-4 w-4 text-gray-400" />
+            <input
+              value={filters.q}
+              onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, q: e.target.value })); }}
+              placeholder={t('Mô tả')}
+              className="w-full bg-transparent text-sm outline-none"
+            />
           </div>
-        </div>
-      )}
+        </label>
 
-      {accounts.length === 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-6 text-center animate-fade-in-up">
-          <Wallet className="w-10 h-10 sm:w-12 sm:h-12 text-amber-500 mx-auto mb-3" />
-          <h3 className="font-semibold text-amber-800 mb-2 text-sm sm:text-base">{t('Chưa có tài khoản nào')}</h3>
-          <p className="text-sm text-amber-600 mb-4 hidden sm:block">{t('Bạn cần tạo ít nhất một tài khoản để thêm giao dịch.')}</p>
-          <button
-            onClick={() => setShowAccountModal(true)}
-            className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-medium text-sm transition-colors"
-          >
-            {t('Tạo tài khoản đầu tiên')}
-          </button>
-        </div>
-      )}
+        <select
+          value={filters.account_id}
+          onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, account_id: e.target.value })); }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">{t('Chọn tài khoản')}</option>
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>{account.name}</option>
+          ))}
+        </select>
 
-      {/* Categories quick init */}
-      {categories.length === 0 && accounts.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 text-center animate-fade-in-up">
-          <p className="text-sm text-blue-600 mb-2">{t('Chưa có danh mục. Khởi tạo danh mục mặc định?')}</p>
-          <button
-            onClick={handleInitCategories}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
-          >
-            {t('Khởi tạo danh mục')}
-          </button>
-        </div>
-      )}
+        <select
+          value={filters.category_id}
+          onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, category_id: e.target.value })); }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">{t('Chọn danh mục')}</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </select>
 
-      {/* Transaction list - Mobile card view, Desktop table view */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-        {transactions.length === 0 ? (
-          <div className="text-center text-gray-400 py-12 sm:py-16 text-sm">
-            {t('Chưa có giao dịch nào.')}
+        <select
+          value={filters.transaction_type}
+          onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, transaction_type: e.target.value })); }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">{t('Hành động')}</option>
+          <option value="expense">{t('Chi tiêu')}</option>
+          <option value="income">{t('Thu nhập')}</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPage(1);
+            setFilters({ q: '', account_id: '', category_id: '', transaction_type: '', start_date: '', end_date: '' });
+          }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+        >
+          {t('Hủy')}
+        </button>
+
+        <input
+          type="datetime-local"
+          value={filters.start_date}
+          onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, start_date: e.target.value })); }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+        <input
+          type="datetime-local"
+          value={filters.end_date}
+          onChange={(e) => { setPage(1); setFilters((prev) => ({ ...prev, end_date: e.target.value })); }}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+      </section>
+
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        {loading ? (
+          <div className="flex h-40 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
           </div>
-        ) : (
+        ) : transactions && transactions.items.length > 0 ? (
           <>
-            {/* Mobile: card view */}
-            <div className="sm:hidden divide-y divide-gray-100">
-              {transactions.map((tx, idx) => (
-                <div key={tx.id} className="p-3 animate-fade-in" style={{ animationDelay: `${idx * 40}ms` }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        tx.transaction_type === 'income' ? 'bg-green-100 text-income' : 'bg-red-100 text-expense'
-                      }`}>
-                        {tx.transaction_type === 'income' ? (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" /></svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          {tx.category && (
-                            <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium text-white flex-shrink-0"
-                              style={{ backgroundColor: tx.category.color }}
-                            >
-                              {tx.category.name}
-                            </span>
-                          )}
-                          <span className="text-xs text-gray-500 truncate">{format(new Date(tx.date), 'dd/MM/yy HH:mm')}</span>
-                        </div>
-                        <div className="text-xs text-gray-500 truncate">{tx.description || '—'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                      <span className={`font-semibold text-sm ${tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                        {tx.transaction_type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
-                      </span>
-                      <button
-                        onClick={() => handleDelete(tx.id)}
-                        className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop: table view */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('Ngày')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('Mô tả')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('Danh mục')}</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('Số tiền')}</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16">{t('Hành động')}</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="px-3 py-3">{t('Ngày')}</th>
+                    <th className="px-3 py-3">{t('Mô tả')}</th>
+                    <th className="px-3 py-3">{t('Danh mục')}</th>
+                    <th className="px-3 py-3 text-right">{t('Số tiền')}</th>
+                    <th className="px-3 py-3 text-right">{t('Hành động')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {transactions.map((tx, idx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors duration-150 animate-fade-in" style={{ animationDelay: `${idx * 30}ms` }}>
-                      <td className="px-4 py-3 text-xs sm:text-sm text-gray-600 whitespace-nowrap">{format(new Date(tx.date), 'dd/MM/yyyy HH:mm')}</td>
-                      <td className="px-4 py-3 text-xs sm:text-sm font-medium text-gray-800 max-w-[200px] truncate">{tx.description || '—'}</td>
-                      <td className="px-4 py-3">
-                        {tx.category ? (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: tx.category.color }}
-                          >
-                            {tx.category.name}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                <tbody>
+                  {transactions.items.map((tx) => (
+                    <tr key={tx.id} className="border-b border-gray-100">
+                      <td className="px-3 py-3 whitespace-nowrap">{format(new Date(tx.date), 'dd/MM/yyyy HH:mm')}</td>
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-gray-800">{tx.description || '—'}</div>
+                        {tx.is_ai_categorized && tx.ai_confidence != null && (
+                          <div className="text-xs text-primary-600">AI {Math.round(tx.ai_confidence * 100)}%</div>
                         )}
                       </td>
-                      <td className={`px-4 py-3 text-xs sm:text-sm font-medium text-right whitespace-nowrap ${tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                      <td className="px-3 py-3">
+                        {tx.category ? (
+                          <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium text-white" style={{ backgroundColor: tx.category.color }}>
+                            {tx.category.name}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className={`px-3 py-3 text-right font-semibold ${tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                         {tx.transaction_type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(tx.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-all duration-200 active:scale-90"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="px-3 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => openEditModal(tx)} className="rounded p-1 text-gray-400 hover:bg-primary-50 hover:text-primary-600">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDelete(tx.id)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                {transactions.total} giao dịch
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  className="rounded border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <span className="text-sm text-gray-600">{page}/{Math.max(totalPages, 1)}</span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((prev) => prev + 1)}
+                  className="rounded border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </>
+        ) : (
+          <div className="py-12 text-center text-sm text-gray-400">{t('Chưa có giao dịch nào.')}</div>
         )}
-      </div>
+      </section>
 
-      {/* Create/Edit Account Modal */}
-      {showAccountModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 modal-backdrop">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md modal-content max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl sm:rounded-xl">
-              <h3 className="font-semibold text-base sm:text-lg">{editingAccount ? t('Sửa tài khoản') : t('Tạo tài khoản mới')}</h3>
-              <button onClick={() => { setShowAccountModal(false); setEditingAccount(null); setAccountForm({ name: '', account_type: 'cash' }); setAccountError(''); }} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={editingAccount ? handleUpdateAccount : handleCreateAccount} className="p-4 sm:p-5 space-y-4">
+      <section className="grid gap-3 md:grid-cols-3">
+        {accounts.map((account) => (
+          <div key={account.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tên tài khoản')}</label>
-                <input
-                  type="text"
-                  required
-                  value={accountForm.name}
-                  onChange={(e) => { setAccountForm({ ...accountForm, name: e.target.value }); setAccountError(''); }}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  placeholder={t('Ví dụ: Ví tiền mặt')}
-                />
-                {accountError && (
-                  <p className="mt-1 text-sm text-red-500">{accountError}</p>
-                )}
+                <div className="font-semibold text-gray-900">{account.name}</div>
+                <div className="text-xs text-gray-500">
+                  {accountTypeOptions.find((item) => item.value === account.account_type)?.label || account.account_type}
+                </div>
+                <div className="mt-2 text-sm font-medium text-primary-700">{formatCurrency(account.balance)}</div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Loại tài khoản')}</label>
-                <select
-                  value={accountForm.account_type}
-                  onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    setEditingAccount(account);
+                    setAccountForm({ name: account.name, account_type: account.account_type });
+                    setShowAccountModal(true);
+                  }}
+                  className="rounded p-1 text-gray-400 hover:bg-primary-50 hover:text-primary-600"
                 >
-                  {ACCOUNT_TYPES.map((a) => (
-                    <option key={a.value} value={a.value}>{a.label}</option>
-                  ))}
-                </select>
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteAccount(account.id)}
+                  className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={accountLoading}
-                className="w-full bg-green-600 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl hover:bg-green-700 font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {accountLoading ? t('Đang xử lý...') : (editingAccount ? t('Lưu thay đổi') : t('Tạo tài khoản'))}
-              </button>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        ))}
+      </section>
 
-      {/* Add Transaction Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 modal-backdrop">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md modal-content max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl sm:rounded-xl">
-              <h3 className="font-semibold text-base sm:text-lg">{t('Thêm giao dịch')}</h3>
-              <button onClick={() => setShowModal(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <X className="w-5 h-5" />
+        <Modal title={editingTransaction ? t('Lưu thay đổi') : t('Thêm giao dịch')} onClose={resetTransactionModal}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, transaction_type: 'expense' }))}
+                className={`rounded-lg px-3 py-2 text-sm font-medium ${form.transaction_type === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}
+              >
+                {t('Chi tiêu')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, transaction_type: 'income' }))}
+                className={`rounded-lg px-3 py-2 text-sm font-medium ${form.transaction_type === 'income' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}
+              >
+                {t('Thu nhập')}
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
-              {/* Type toggle */}
-              <div className="flex gap-1.5 p-1.5 bg-gray-100 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, transaction_type: 'expense' })}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    form.transaction_type === 'expense' ? 'bg-white shadow-md text-red-600' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {t('Chi tiêu')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, transaction_type: 'income' })}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    form.transaction_type === 'income' ? 'bg-white shadow-md text-green-600' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {t('Thu nhập')}
-                </button>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tài khoản')}</label>
-                <select
-                  required
-                  value={form.account_id}
-                  onChange={(e) => setForm({ ...form, account_id: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                >
-                  <option value="">{t('Chọn tài khoản')}</option>
-                  {accounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>{acc.name}</option>
-                  ))}
-                </select>
-              </div>
+            <select required value={form.account_id} onChange={(e) => setForm((prev) => ({ ...prev, account_id: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm">
+              <option value="">{t('Chọn tài khoản')}</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Số tiền (VND)')}</label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="1000"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  placeholder="0"
-                />
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <select value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm">
+                <option value="">{t('Chọn danh mục')}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+              <div className="flex items-center rounded-lg border border-gray-300 px-3 text-sm text-primary-600">
+                {aiLoading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" /> : <Sparkles className="h-4 w-4" />}
               </div>
-
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Danh mục')}</label>
-                  <select
-                    value={form.category_id}
-                    onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  >
-                    <option value="">{t('Chọn danh mục')}</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-end pb-1">
-                  <button
-                    type="button"
-                    onClick={handleAICategorize}
-                    disabled={!form.description || aiLoading}
-                    className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-lg disabled:opacity-50 transition-all duration-200 active:scale-90"
-                    title={t('Phân loại tự động bằng AI')}
-                  >
-                    {aiLoading ? (
-                      <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Sparkles className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+            </div>
+            {aiSuggestion && (
+              <div className="rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-700">
+                Gợi ý AI: {aiSuggestion.category_name} ({Math.round(aiSuggestion.confidence * 100)}%)
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Mô tả')}</label>
-                <input
-                  type="text"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  placeholder="Mua cơm trưa..."
-                />
-              </div>
+            <input type="number" min="0" step="1000" required value={form.amount} onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder={t('Số tiền')} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            <input type="text" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder={t('Mô tả')} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            <input type="datetime-local" required value={form.date} onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Ngày')}</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-primary-600 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl hover:bg-primary-700 font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
-              >
-                {t('Lưu giao dịch')}
-              </button>
-            </form>
-          </div>
-        </div>
+            <button type="submit" className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">
+              {editingTransaction ? t('Lưu thay đổi') : t('Lưu giao dịch')}
+            </button>
+          </form>
+        </Modal>
       )}
 
-      {/* Transfer Modal */}
+      {showAccountModal && (
+        <Modal title={editingAccount ? t('Sửa tài khoản') : t('Tạo tài khoản mới')} onClose={() => { setShowAccountModal(false); setEditingAccount(null); setAccountForm({ name: '', account_type: 'cash' }); }}>
+          <form onSubmit={handleCreateAccount} className="space-y-4">
+            <input value={accountForm.name} onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))} placeholder={t('Tên tài khoản')} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            <select value={accountForm.account_type} onChange={(e) => setAccountForm((prev) => ({ ...prev, account_type: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm">
+              {accountTypeOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            {accountError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{accountError}</div>}
+            <button disabled={accountLoading} type="submit" className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700">
+              {accountLoading ? t('Đang xử lý...') : (editingAccount ? t('Lưu thay đổi') : t('Tạo tài khoản'))}
+            </button>
+          </form>
+        </Modal>
+      )}
+
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 modal-backdrop">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md modal-content max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl sm:rounded-xl">
-              <h3 className="font-semibold text-base sm:text-lg">{t('Chuyển tiền')}</h3>
-              <button onClick={() => { setShowTransferModal(false); setTransferError(''); }} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleTransfer} className="p-4 sm:p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tài khoản nguồn')}</label>
-                <select
-                  required
-                  value={transferForm.from_account_id}
-                  onChange={(e) => setTransferForm({ ...transferForm, from_account_id: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
-                >
-                  <option value="">{t('Chọn tài khoản nguồn')}</option>
-                  {accounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>{acc.name} - {formatCurrency(acc.balance)}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Arrow */}
-              <div className="flex justify-center">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                  <ArrowLeftRight className="w-5 h-5 text-purple-600 rotate-90" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tài khoản đích')}</label>
-                <select
-                  required
-                  value={transferForm.to_account_id}
-                  onChange={(e) => setTransferForm({ ...transferForm, to_account_id: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
-                >
-                  <option value="">{t('Chọn tài khoản đích')}</option>
-                  {accounts.filter(a => a.id !== Number(transferForm.from_account_id)).map((acc) => (
-                    <option key={acc.id} value={acc.id}>{acc.name} - {formatCurrency(acc.balance)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Số tiền (VND)')}</label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="1000"
-                  value={transferForm.amount}
-                  onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
-                  placeholder="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Mô tả (tùy chọn)')}</label>
-                <input
-                  type="text"
-                  value={transferForm.description}
-                  onChange={(e) => setTransferForm({ ...transferForm, description: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
-                  placeholder={t('Ghi chú...')}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Ngày')}</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={transferForm.date}
-                  onChange={(e) => setTransferForm({ ...transferForm, date: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
-                />
-              </div>
-
-              {transferError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                  {transferError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={transferLoading || !transferForm.from_account_id || !transferForm.to_account_id}
-                className="w-full bg-purple-600 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl hover:bg-purple-700 font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {transferLoading ? t('Đang xử lý...') : t('Chuyển tiền')}
-              </button>
-            </form>
-          </div>
-        </div>
+        <Modal title={t('Chuyển tiền')} onClose={() => setShowTransferModal(false)}>
+          <form onSubmit={handleTransfer} className="space-y-4">
+            <select required value={transferForm.from_account_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, from_account_id: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm">
+              <option value="">{t('Chọn tài khoản nguồn')}</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+            <select required value={transferForm.to_account_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, to_account_id: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm">
+              <option value="">{t('Chọn tài khoản đích')}</option>
+              {accounts.filter((account) => String(account.id) !== transferForm.from_account_id).map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+            <input type="number" min="0" step="1000" required value={transferForm.amount} onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder={t('Số tiền')} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            <input type="text" value={transferForm.description} onChange={(e) => setTransferForm((prev) => ({ ...prev, description: e.target.value }))} placeholder={t('Mô tả (tùy chọn)')} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            <input type="datetime-local" required value={transferForm.date} onChange={(e) => setTransferForm((prev) => ({ ...prev, date: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm" />
+            {transferError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{transferError}</div>}
+            <button disabled={transferLoading} type="submit" className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700">
+              {transferLoading ? t('Đang xử lý...') : t('Chuyển tiền')}
+            </button>
+          </form>
+        </Modal>
       )}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
     </div>
   );
 }

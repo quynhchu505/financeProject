@@ -44,7 +44,7 @@ export default function Layout() {
             <div className="flex items-center gap-2 sm:gap-4">
               <span className="text-sm text-gray-600 hidden sm:block">{user?.name}</span>
               <button
-                onClick={logout}
+                onClick={() => { void logout(); }}
                 className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
                 title={t('Đăng xuất')}
               >
