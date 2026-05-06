@@ -2,7 +2,48 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  is_active?: boolean;
   created_at: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: 'male' | 'female' | 'other' | null;
+  address?: string | null;
+  avatar_url?: string | null;
+  currency?: string;
+  timezone?: string;
+  language?: 'vi' | 'en';
+  date_format?: string;
+  week_start?: 'monday' | 'sunday';
+  two_fa_enabled?: boolean;
+}
+
+export interface LoginHistoryItem {
+  id: number;
+  ip_address: string | null;
+  user_agent: string | null;
+  status: 'success' | 'failure';
+  failure_reason: string | null;
+  created_at: string;
+}
+
+export interface SessionItem {
+  id: number;
+  user_agent: string | null;
+  ip_address: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string;
+}
+
+export interface NotificationPrefs {
+  budget_alerts: boolean;
+  bill_reminders: boolean;
+  weekly_summary: boolean;
+  goal_reached: boolean;
+  new_login: boolean;
+  anomaly_detected: boolean;
+  channel_in_app: boolean;
+  channel_email: boolean;
 }
 
 export interface Account {

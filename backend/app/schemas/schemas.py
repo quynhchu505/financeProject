@@ -37,9 +37,83 @@ class UserResponse(BaseModel):
     name: str
     is_active: bool
     created_at: datetime
+    phone: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    gender: Optional[str] = None
+    address: Optional[str] = None
+    avatar_url: Optional[str] = None
+    currency: str = "VND"
+    timezone: str = "Asia/Ho_Chi_Minh"
+    language: str = "vi"
+    date_format: str = "dd/MM/yyyy"
+    week_start: str = "monday"
+    two_fa_enabled: bool = False
 
     class Config:
         from_attributes = True
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=32)
+    date_of_birth: Optional[datetime] = None
+    gender: Optional[str] = Field(default=None, pattern="^(male|female|other)$")
+    address: Optional[str] = Field(default=None, max_length=500)
+    currency: Optional[str] = Field(default=None, max_length=10)
+    timezone: Optional[str] = Field(default=None, max_length=64)
+    language: Optional[str] = Field(default=None, pattern="^(vi|en)$")
+    date_format: Optional[str] = Field(default=None, max_length=20)
+    week_start: Optional[str] = Field(default=None, pattern="^(monday|sunday)$")
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    password: str
+
+
+class AccountDeleteRequest(BaseModel):
+    password: str
+    confirmation: str
+
+
+class LoginHistoryItem(BaseModel):
+    id: int
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    status: str
+    failure_reason: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionItem(BaseModel):
+    id: int
+    user_agent: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    expires_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationPrefs(BaseModel):
+    budget_alerts: bool = True
+    bill_reminders: bool = True
+    weekly_summary: bool = False
+    goal_reached: bool = True
+    new_login: bool = True
+    anomaly_detected: bool = True
+    channel_in_app: bool = True
+    channel_email: bool = False
 
 
 class AccountCreate(BaseModel):

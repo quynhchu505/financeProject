@@ -38,6 +38,25 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Profile fields
+    phone = Column(String(32), nullable=True)
+    date_of_birth = Column(DateTime(timezone=True), nullable=True)
+    gender = Column(String(16), nullable=True)
+    address = Column(String(500), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+
+    # Preferences
+    currency = Column(String(10), nullable=False, default="VND")
+    timezone = Column(String(64), nullable=False, default="Asia/Ho_Chi_Minh")
+    language = Column(String(10), nullable=False, default="vi")
+    date_format = Column(String(20), nullable=False, default="dd/MM/yyyy")
+    week_start = Column(String(10), nullable=False, default="monday")
+    notification_prefs = Column(Text, nullable=True)
+
+    # Security
+    two_fa_enabled = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -51,6 +70,7 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     chat_history = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
+    login_history = relationship("LoginHistory", back_populates="user", cascade="all, delete-orphan")
 
 
 class Account(Base):
@@ -222,9 +242,30 @@ class RefreshToken(Base):
     token_hash = Column(String(64), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="refresh_tokens")
+
+
+class LoginHistory(Base):
+    __tablename__ = "login_history"
+    __table_args__ = (
+        Index("ix_login_history_user_id", "user_id"),
+        Index("ix_login_history_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    ip_address = Column(String(64), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    status = Column(String(20), nullable=False, default="success")
+    failure_reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="login_history")
 
 
 class ChatSession(Base):

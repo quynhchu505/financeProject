@@ -32,7 +32,7 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 
 COPY --chown=app:app . .
 
-RUN mkdir -p /app/ai/models && chown -R app:app /app/ai/models
+RUN mkdir -p /app/ai/models /app/uploads/avatars && chown -R app:app /app/ai/models /app/uploads
 
 USER app
 

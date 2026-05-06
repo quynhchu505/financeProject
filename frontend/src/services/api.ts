@@ -136,6 +136,63 @@ class ApiService {
     return this.request('/auth/me');
   }
 
+  async updateProfile(data: Partial<{
+    name: string;
+    phone: string | null;
+    date_of_birth: string | null;
+    gender: 'male' | 'female' | 'other' | null;
+    address: string | null;
+    currency: string;
+    timezone: string;
+    language: 'vi' | 'en';
+    date_format: string;
+    week_start: 'monday' | 'sunday';
+  }>) {
+    return this.request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async uploadAvatar(file: File) {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.request('/auth/avatar', { method: 'POST', body: fd });
+  }
+
+  async deleteAvatar() {
+    return this.request('/auth/avatar', { method: 'DELETE' });
+  }
+
+  async changeEmail(data: { new_email: string; password: string }) {
+    return this.request('/auth/email', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async changePassword(data: { current_password: string; new_password: string }) {
+    return this.request('/auth/change-password', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async getLoginHistory(limit = 30) {
+    return this.request<any[]>(`/auth/login-history?limit=${limit}`);
+  }
+
+  async getSessions() {
+    return this.request<any[]>('/auth/sessions');
+  }
+
+  async revokeSession(id: number) {
+    return this.request<void>(`/auth/sessions/${id}`, { method: 'DELETE' });
+  }
+
+  async getNotificationPrefs() {
+    return this.request<any>('/auth/notification-prefs');
+  }
+
+  async updateNotificationPrefs(data: Record<string, boolean>) {
+    return this.request<any>('/auth/notification-prefs', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteMyAccount(data: { password: string; confirmation: string }) {
+    return this.request<void>('/auth/me', { method: 'DELETE', body: JSON.stringify(data) });
+  }
+
   async getAccounts() {
     return this.request<any[]>('/accounts/');
   }
@@ -303,7 +360,7 @@ class ApiService {
   }
 
   async getAlerts(unreadOnly = false) {
-    return this.request<any[]>(`/alerts/?unread_only=${unreadOnly}`);
+    return this.request<any>(`/alerts/?unread_only=${unreadOnly}`);
   }
 
   async markAlertRead(id: number) {

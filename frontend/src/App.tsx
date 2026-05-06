@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { I18nProvider } from '@/i18n';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
@@ -8,6 +9,7 @@ import Transactions from '@/pages/Transactions';
 import Budgets from '@/pages/Budgets';
 import Reports from '@/pages/Reports';
 import Chatbot from '@/pages/Chatbot';
+import Settings from '@/pages/Settings';
 import '@/index.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -15,7 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="animate-spin w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full" />
       </div>
     );
@@ -48,6 +50,7 @@ function AppRoutes() {
         <Route path="budgets" element={<Budgets />} />
         <Route path="reports" element={<Reports />} />
         <Route path="chatbot" element={<Chatbot />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -57,11 +60,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <I18nProvider>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </I18nProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
