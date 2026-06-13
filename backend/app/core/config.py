@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -41,7 +42,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ENABLE_METRICS: bool = True
     ENABLE_BACKGROUND_JOBS: bool = True
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: str = "*"
 
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
@@ -70,18 +71,23 @@ class Settings(BaseSettings):
             return False
         return False
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, value):
-        if value is None:
-            return ["*"]
-        if isinstance(value, list):
-            return value
-        raw = str(value).strip()
+    @property
+    def cors_origins_list(self) -> list[str]:
+        raw = self.CORS_ORIGINS.strip()
         if not raw:
             return ["*"]
         if raw == "*":
             return ["*"]
+
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                origins = [str(item).strip() for item in parsed if str(item).strip()]
+                return origins or ["*"]
+
         return [item.strip() for item in raw.split(",") if item.strip()]
 
 
