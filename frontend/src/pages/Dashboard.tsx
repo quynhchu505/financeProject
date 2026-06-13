@@ -47,12 +47,12 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold text-gray-900">Tổng quan</h1>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="space-y-xl animate-fade-in">
+        <h1 className="font-display text-[32px] sm:text-[40px] text-charcoal">Tổng quan</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-xl">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl p-4 sm:p-5 h-24">
-              <div className="skeleton h-full w-full" />
+            <div key={i} className="bg-white rounded-card border border-gray-border shadow-elevated p-xl h-[104px]">
+              <div className="skeleton h-full w-full rounded-standard" />
             </div>
           ))}
         </div>
@@ -69,71 +69,71 @@ export default function Dashboard() {
   }));
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 animate-fade-in-up">{t('Tổng quan')}</h1>
+    <div className="space-y-2xl">
+      <h1 className="font-display text-[32px] sm:text-[40px] tracking-tight text-charcoal animate-fade-in-up">{t('Tổng quan')}</h1>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-xl stagger-children">
         <div
-          className={`bg-white rounded-xl shadow-sm p-4 sm:p-5 card-hover transition-all duration-500 ${
+          className={`bg-white rounded-card border border-gray-border shadow-elevated p-xl transition-all duration-500 hover:shadow-high ${
             visibleCards >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-primary-500 p-2 sm:p-2.5 rounded-lg flex-shrink-0">
-              <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="flex items-center gap-md">
+            <div className="bg-beige-light p-3 rounded-standard flex-shrink-0">
+              <Wallet className="w-6 h-6 text-primary" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs sm:text-sm text-gray-500 truncate">{t('Tổng số dư')}</div>
-              <div className="text-sm sm:text-lg font-bold text-gray-900 truncate">{formatCurrency(stats.total_balance)}</div>
+              <div className="text-sm font-ui text-gray-dark truncate">{t('Tổng số dư')}</div>
+              <div className="font-display text-[24px] tracking-tight text-charcoal truncate">{formatCurrency(stats.total_balance)}</div>
             </div>
           </div>
         </div>
 
         <div
-          className={`bg-white rounded-xl shadow-sm p-4 sm:p-5 card-hover transition-all duration-500 ${
+          className={`bg-white rounded-card border border-gray-border shadow-elevated p-xl transition-all duration-500 hover:shadow-high ${
             visibleCards >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-income p-2 sm:p-2.5 rounded-lg flex-shrink-0">
-              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="flex items-center gap-md">
+            <div className="bg-income/10 p-3 rounded-standard flex-shrink-0">
+              <TrendingUp className="w-6 h-6 text-income" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs sm:text-sm text-gray-500 truncate">{t('Thu nhập tháng')}</div>
-              <div className="text-sm sm:text-lg font-bold text-income truncate">{formatCurrency(stats.monthly_income)}</div>
+              <div className="text-sm font-ui text-gray-dark truncate">{t('Thu nhập tháng')}</div>
+              <div className="font-display text-[24px] tracking-tight text-income truncate">{formatCurrency(stats.monthly_income)}</div>
             </div>
           </div>
         </div>
 
         <div
-          className={`bg-white rounded-xl shadow-sm p-4 sm:p-5 card-hover transition-all duration-500 ${
+          className={`bg-white rounded-card border border-gray-border shadow-elevated p-xl transition-all duration-500 hover:shadow-high ${
             visibleCards >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-expense p-2 sm:p-2.5 rounded-lg flex-shrink-0">
-              <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="flex items-center gap-md">
+            <div className="bg-expense/10 p-3 rounded-standard flex-shrink-0">
+              <TrendingDown className="w-6 h-6 text-expense" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs sm:text-sm text-gray-500 truncate">{t('Chi tiêu tháng')}</div>
-              <div className="text-sm sm:text-lg font-bold text-expense truncate">{formatCurrency(stats.monthly_expense)}</div>
+              <div className="text-sm font-ui text-gray-dark truncate">{t('Chi tiêu tháng')}</div>
+              <div className="font-display text-[24px] tracking-tight text-expense truncate">{formatCurrency(stats.monthly_expense)}</div>
             </div>
           </div>
         </div>
 
         <div
-          className={`bg-white rounded-xl shadow-sm p-4 sm:p-5 card-hover transition-all duration-500 ${
+          className={`bg-white rounded-card border border-gray-border shadow-elevated p-xl transition-all duration-500 hover:shadow-high ${
             visibleCards >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-amber-500 p-2 sm:p-2.5 rounded-lg flex-shrink-0">
-              <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="flex items-center gap-md">
+            <div className="bg-semantic-warning/10 p-3 rounded-standard flex-shrink-0">
+              <PiggyBank className="w-6 h-6 text-semantic-warning" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs sm:text-sm text-gray-500 truncate">{t('Tỷ lệ tiết kiệm')}</div>
-              <div className="text-sm sm:text-lg font-bold text-amber-600 truncate">{stats.savings_rate}%</div>
+              <div className="text-sm font-ui text-gray-dark truncate">{t('Tỷ lệ tiết kiệm')}</div>
+              <div className="font-display text-[24px] tracking-tight text-semantic-warning truncate">{stats.savings_rate}%</div>
             </div>
           </div>
         </div>
@@ -141,21 +141,21 @@ export default function Dashboard() {
 
       {/* Budget alerts */}
       {stats.budget_alerts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 animate-fade-in-up">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <h3 className="font-semibold text-amber-800 text-sm sm:text-base">{t('Cảnh báo ngân sách')}</h3>
+        <div className="bg-semantic-warning/5 border border-semantic-warning/20 rounded-card p-xl animate-fade-in-up">
+          <div className="flex items-center gap-2 mb-md">
+            <AlertTriangle className="w-5 h-5 text-semantic-warning flex-shrink-0" />
+            <h3 className="font-ui font-medium text-[18px] text-charcoal">{t('Cảnh báo ngân sách')}</h3>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-sm">
             {stats.budget_alerts.map((alert, idx) => (
-              <div key={alert.budget.id} className="flex items-center justify-between bg-white rounded-lg p-3 card-hover animate-fade-in">
+              <div key={alert.budget.id} className="flex items-center justify-between bg-white rounded-standard border border-gray-border p-md hover:shadow-raised transition-shadow animate-fade-in">
                 <div className="min-w-0 flex-1">
-                  <span className="font-medium text-gray-800 text-sm sm:text-base">{alert.budget.category.name}</span>
-                  <div className="text-xs sm:text-sm text-gray-500">
-                    {t('Đã chi')} {formatCurrency(alert.spent)} / {formatCurrency(alert.budget.amount)}
+                  <span className="font-medium text-[16px] text-charcoal">{alert.budget.category.name}</span>
+                  <div className="text-[14px] text-gray-dark mt-1">
+                    {t('Đã chi')} <span className="font-medium text-charcoal">{formatCurrency(alert.spent)}</span> / {formatCurrency(alert.budget.amount)}
                   </div>
                 </div>
-                <span className={`text-sm font-medium ml-2 flex-shrink-0 ${alert.percentage >= 100 ? 'text-red-600' : 'text-amber-600'}`}>
+                <span className={`text-[16px] font-medium ml-xl flex-shrink-0 ${alert.percentage >= 100 ? 'text-semantic-error' : 'text-semantic-warning'}`}>
                   {alert.percentage}%
                 </span>
               </div>
@@ -164,23 +164,24 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Anomaly alerts */}
       {stats.anomaly_alerts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-fade-in-up">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <h3 className="font-semibold text-red-800 text-sm sm:text-base">Cảnh báo bất thường</h3>
+        <div className="bg-semantic-error/5 border border-semantic-error/20 rounded-card p-xl animate-fade-in-up">
+          <div className="flex items-center gap-2 mb-md">
+            <AlertTriangle className="w-5 h-5 text-semantic-error flex-shrink-0" />
+            <h3 className="font-ui font-medium text-[18px] text-charcoal">Cảnh báo bất thường</h3>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-sm">
             {stats.anomaly_alerts.map((alert) => (
-              <div key={alert.id} className="rounded-lg bg-white p-3 text-sm text-gray-700">
-                <div className="font-medium text-red-700">{alert.title}</div>
-                <div className="text-xs text-gray-500 mt-1">{alert.message}</div>
-                <div className="mt-3 flex flex-wrap gap-2">
+              <div key={alert.id} className="rounded-standard bg-white border border-gray-border p-md">
+                <div className="font-medium text-[16px] text-charcoal">{alert.title}</div>
+                <div className="text-[14px] text-gray-dark mt-1">{alert.message}</div>
+                <div className="mt-md flex flex-wrap gap-sm">
                   <button
                     type="button"
                     onClick={() => submitAnomalyFeedback(alert.id, 'normal')}
                     disabled={feedbackLoadingId === alert.id}
-                    className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:border-green-200 hover:bg-green-50 hover:text-green-700 disabled:opacity-50"
+                    className="rounded-pill border border-gray-border px-lg py-sm text-[14px] font-medium text-charcoal hover:bg-offwhite-1 hover:border-gray-medium transition-colors disabled:opacity-50"
                   >
                     {t('Bình thường')}
                   </button>
@@ -188,7 +189,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => submitAnomalyFeedback(alert.id, 'investigate')}
                     disabled={feedbackLoadingId === alert.id}
-                    className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-pill border border-semantic-error px-lg py-sm text-[14px] font-medium text-semantic-error hover:bg-semantic-error/5 transition-colors disabled:opacity-50"
                   >
                     {t('Cần điều tra')}
                   </button>
@@ -200,40 +201,45 @@ export default function Dashboard() {
       )}
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-xl">
         {/* Category pie chart */}
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 card-hover animate-fade-in-up">
-          <h3 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">{t('Chi tiêu theo danh mục')}</h3>
+        <div className="bg-white rounded-card border border-gray-border shadow-elevated p-xl sm:p-2xl hover:shadow-high transition-shadow animate-fade-in-up">
+          <h3 className="font-display text-[24px] text-charcoal mb-xl">{t('Chi tiêu theo danh mục')}</h3>
           {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={pieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  innerRadius={80}
+                  outerRadius={120}
                   paddingAngle={2}
                   dataKey="value"
+                  stroke="none"
                 >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #DCD9D6', boxShadow: '0px 10px 15px -3px rgba(34, 32, 29, 0.1)' }}
+                  itemStyle={{ color: '#22201D', fontFamily: 'Outfit' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[250px] flex items-center justify-center text-gray-400 text-sm">
+            <div className="h-[300px] flex items-center justify-center text-gray-medium font-ui text-[16px]">
               {t('Chưa có dữ liệu chi tiêu')}
             </div>
           )}
           {pieData.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 gap-1 sm:gap-2">
+            <div className="mt-xl grid grid-cols-2 gap-md">
               {pieData.map((cat, idx) => (
-                <div key={cat.name} className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm animate-fade-in">
-                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                  <span className="text-gray-600 truncate">{cat.name}</span>
+                <div key={cat.name} className="flex items-center gap-sm animate-fade-in">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="font-ui text-[15px] text-charcoal truncate">{cat.name}</span>
                 </div>
               ))}
             </div>
@@ -241,34 +247,36 @@ export default function Dashboard() {
         </div>
 
         {/* Recent transactions */}
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 card-hover animate-fade-in-up">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{t('Giao dịch gần đây')}</h3>
-            <Link to="/transactions" className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1 font-medium">
-              {t('Xem tất cả')} <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+        <div className="bg-white rounded-card border border-gray-border shadow-elevated p-xl sm:p-2xl hover:shadow-high transition-shadow animate-fade-in-up flex flex-col">
+          <div className="flex items-center justify-between mb-xl">
+            <h3 className="font-display text-[24px] text-charcoal">{t('Giao dịch gần đây')}</h3>
+            <Link to="/transactions" className="font-ui text-[15px] text-primary hover:text-primary-hover flex items-center gap-1 font-medium transition-colors">
+              {t('Xem tất cả')} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="space-y-2 sm:space-y-3">
+          <div className="space-y-0 flex-1">
             {stats.recent_transactions.length === 0 ? (
-              <div className="text-center text-gray-400 py-8 text-sm">{t('Chưa có giao dịch nào')}</div>
+              <div className="h-full flex items-center justify-center text-gray-medium font-ui text-[16px]">
+                {t('Chưa có giao dịch nào')}
+              </div>
             ) : (
               stats.recent_transactions.map((tx, idx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 animate-fade-in"
+                  className="flex items-center justify-between py-md border-b border-gray-border last:border-0 hover:bg-offwhite-1 transition-colors -mx-xl px-xl sm:-mx-2xl sm:px-2xl"
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      tx.transaction_type === 'income' ? 'bg-green-100 text-income' : 'bg-red-100 text-expense'
+                  <div className="flex items-center gap-md min-w-0 flex-1">
+                    <div className={`w-10 h-10 rounded-standard flex items-center justify-center flex-shrink-0 ${
+                      tx.transaction_type === 'income' ? 'bg-income/10 text-income' : 'bg-expense/10 text-expense'
                     }`}>
-                      {tx.transaction_type === 'income' ? <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" /> : <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />}
+                      {tx.transaction_type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-medium text-gray-800 text-xs sm:text-sm truncate">{tx.category?.name || '—'}</div>
-                      <div className="text-xs text-gray-500 truncate max-w-[120px] sm:max-w-[180px]">{tx.description || '—'}</div>
+                      <div className="font-ui font-medium text-[16px] text-charcoal truncate">{tx.category?.name || '—'}</div>
+                      <div className="font-ui text-[14px] text-gray-dark truncate">{tx.description || '—'}</div>
                     </div>
                   </div>
-                  <span className={`font-medium text-xs sm:text-sm flex-shrink-0 ml-2 ${tx.transaction_type === 'income' ? 'text-income' : 'text-expense'}`}>
+                  <span className={`font-ui font-medium text-[16px] flex-shrink-0 ml-xl ${tx.transaction_type === 'income' ? 'text-income' : 'text-charcoal'}`}>
                     {tx.transaction_type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                   </span>
                 </div>

@@ -123,24 +123,24 @@ export default function Chatbot() {
   ];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      <aside className="rounded-xl bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">{t('Lịch sử chat')}</h2>
-          <button onClick={createSession} className="rounded-lg bg-primary-50 p-2 text-primary-700 hover:bg-primary-100">
+    <div className="grid gap-xl lg:grid-cols-[280px_1fr] font-ui h-full">
+      <aside className="rounded-card bg-white p-xl shadow-elevated border border-gray-border animate-fade-in-up">
+        <div className="mb-lg flex items-center justify-between">
+          <h2 className="font-ui font-medium text-[18px] text-charcoal">{t('Lịch sử chat')}</h2>
+          <button onClick={createSession} className="rounded-standard bg-offwhite-1 p-2 text-charcoal border border-gray-border hover:bg-offwhite-2 shadow-raised transition-colors">
             <MessageSquarePlus className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-sm max-h-[calc(100vh-250px)] overflow-y-auto">
           {sessions.length === 0 ? (
-            <div className="rounded-lg bg-gray-50 px-3 py-4 text-sm text-gray-500">{t('Bắt đầu cuộc trò chuyện mới')}</div>
+            <div className="rounded-standard bg-offwhite-1 px-md py-lg text-[14px] text-gray-medium text-center border border-gray-border">{t('Bắt đầu cuộc trò chuyện mới')}</div>
           ) : sessions.map((session) => (
-            <div key={session.id} className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${currentSessionId === session.id ? 'border-primary-300 bg-primary-50' : 'border-gray-200'}`}>
-              <button className="flex-1 text-left" onClick={() => loadSession(session.id)}>
-                <div className="truncate text-sm font-medium text-gray-800">{session.title}</div>
-                <div className="text-xs text-gray-500">{session.message_count} {t('tin')}</div>
+            <div key={session.id} className={`flex items-start gap-2 rounded-standard border px-md py-sm transition-colors ${currentSessionId === session.id ? 'border-primary/50 bg-primary/5' : 'border-gray-border hover:bg-offwhite-1'}`}>
+              <button className="flex-1 text-left min-w-0" onClick={() => loadSession(session.id)}>
+                <div className="truncate text-[15px] font-medium text-charcoal">{session.title}</div>
+                <div className="text-[12px] text-gray-dark mt-0.5">{session.message_count} {t('tin')}</div>
               </button>
-              <button onClick={() => deleteSession(session.id)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500">
+              <button onClick={() => deleteSession(session.id)} className="rounded-standard p-1.5 text-gray-medium hover:bg-semantic-error/10 hover:text-semantic-error transition-colors flex-shrink-0">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -148,34 +148,46 @@ export default function Chatbot() {
         </div>
       </aside>
 
-      <section className="flex min-h-[70vh] flex-col rounded-xl bg-white shadow-sm">
-        <div className="border-b border-gray-200 px-4 py-3">
-          <h1 className="text-xl font-bold text-gray-900">{t('Trợ lý Tài chính')}</h1>
+      <section className="flex flex-col h-[calc(100vh-140px)] rounded-card bg-white shadow-elevated border border-gray-border animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div className="border-b border-gray-border px-xl py-md bg-offwhite-1 rounded-t-card">
+          <h1 className="font-display text-[24px] text-charcoal">{t('Trợ lý Tài chính')}</h1>
         </div>
-        {error && <div className="mx-4 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {error && <div className="mx-xl mt-md rounded-standard border border-semantic-error/20 bg-semantic-error/5 px-lg py-md text-[14px] text-semantic-error">{error}</div>}
+        
+        <div className="flex-1 space-y-xl overflow-y-auto p-xl">
           {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${message.role === 'user' ? 'bg-primary-100 text-primary-700' : 'bg-green-100 text-green-700'}`}>
-                {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+            <div key={message.id} className={`flex gap-md ${message.role === 'user' ? 'flex-row-reverse' : ''} animate-fade-in`}>
+              <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow-raised ${message.role === 'user' ? 'bg-primary text-white' : 'bg-charcoal text-white'}`}>
+                {message.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
               </div>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.role === 'user' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                <div className="whitespace-pre-wrap">{message.content}</div>
-                <div className={`mt-1 text-[10px] ${message.role === 'user' ? 'text-primary-200' : 'text-gray-400'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-xl py-md text-[15px] shadow-raised ${message.role === 'user' ? 'bg-primary text-white rounded-tr-sm' : 'bg-offwhite-1 text-charcoal border border-gray-border rounded-tl-sm'}`}>
+                <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
+                <div className={`mt-2 text-[11px] ${message.role === 'user' ? 'text-primary-100' : 'text-gray-medium'}`}>
                   {message.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
           ))}
-          {loading && <div className="text-sm text-gray-400">{t('Đang xử lý...')}</div>}
+          {loading && (
+            <div className="flex gap-md animate-fade-in">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow-raised bg-charcoal text-white">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div className="max-w-[80%] rounded-2xl px-xl py-md text-[15px] shadow-raised bg-offwhite-1 text-charcoal border border-gray-border rounded-tl-sm flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-gray-medium animate-bounce" />
+                <div className="w-2 h-2 rounded-full bg-gray-medium animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-gray-medium animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
         {messages.length <= 1 && (
-          <div className="px-4 pb-2">
-            <div className="flex flex-wrap gap-2">
+          <div className="px-xl pb-md">
+            <div className="flex flex-wrap gap-sm">
               {quickQuestions.map((question) => (
-                <button key={question} onClick={() => setInput(question)} className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700">
+                <button key={question} onClick={() => setInput(question)} className="rounded-pill border border-gray-border bg-white px-lg py-sm text-[13px] text-charcoal shadow-raised hover:bg-offwhite-1 transition-colors">
                   {question}
                 </button>
               ))}
@@ -183,17 +195,17 @@ export default function Chatbot() {
           </div>
         )}
 
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex gap-3">
+        <div className="border-t border-gray-border p-xl bg-offwhite-1 rounded-b-card">
+          <div className="flex gap-sm">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={t('Hỏi về tài chính cá nhân...')}
-              className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+              className="flex-1 rounded-pill border border-gray-border bg-white px-lg py-sm text-[15px] outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10 shadow-raised h-[44px] text-charcoal placeholder-gray-medium transition-all"
             />
-            <button onClick={handleSend} disabled={!input.trim() || loading} className="rounded-xl bg-primary-600 px-4 text-white hover:bg-primary-700 disabled:opacity-50">
-              <Send className="h-4 w-4" />
+            <button onClick={handleSend} disabled={!input.trim() || loading} className="flex items-center justify-center rounded-pill bg-primary w-[44px] h-[44px] text-white hover:bg-primary-hover active:bg-primary disabled:opacity-50 disabled:bg-gray-medium transition-colors shadow-raised">
+              <Send className="h-5 w-5" />
             </button>
           </div>
         </div>

@@ -253,7 +253,7 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
         onClick={isOpen ? handleClose : handleOpen}
         className={clsx(
           'fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-lg',
-          'bg-primary-600 hover:bg-primary-700 text-white',
+          'bg-primary hover:bg-primary-hover text-white',
           'flex items-center justify-center transition-all duration-300',
           'hover:scale-110 active:scale-95',
           'flex items-center justify-center'
@@ -280,16 +280,16 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
-          <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Bot className="w-5 h-5 text-primary-600" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-border bg-white">
+          <div className="w-9 h-9 bg-primary-100 rounded-card flex items-center justify-center flex-shrink-0">
+            <Bot className="w-5 h-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-gray-900 text-sm truncate">
+            <h2 className="font-medium text-charcoal text-sm truncate">
               {t('Trợ lý Tài chính')}
             </h2>
             {currentSessionId && (
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-gray-dark truncate">
                 {sessions.find((s) => s.id === currentSessionId)?.title || ''}
               </p>
             )}
@@ -297,10 +297,10 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
           <button
             onClick={() => setShowHistory(!showHistory)}
             className={clsx(
-              'p-2 rounded-lg transition-colors',
+              'p-2 rounded-standard transition-colors',
               showHistory
-                ? 'bg-primary-100 text-primary-600'
-                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                ? 'bg-primary-100 text-primary'
+                : 'text-gray-medium hover:text-gray-dark hover:bg-offwhite-2'
             )}
             title={t('Lịch sử chat')}
           >
@@ -308,7 +308,7 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
           </button>
           <button
             onClick={handleClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-medium hover:text-gray-dark hover:bg-offwhite-2 rounded-standard transition-colors"
             title={t('Đóng')}
           >
             <X className="w-5 h-5" />
@@ -318,19 +318,19 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
         {/* History Sidebar */}
         {showHistory && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-border">
               <button
                 onClick={() => setShowHistory(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 text-gray-medium hover:text-gray-dark hover:bg-offwhite-2 rounded-standard transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-charcoal">
                 {t('Lịch sử chat')}
               </span>
               <button
                 onClick={createNewSession}
-                className="ml-auto p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                className="ml-auto p-1.5 text-primary hover:bg-primary-50 rounded-standard transition-colors"
                 title={t('Phiên mới')}
               >
                 <Plus className="w-4 h-4" />
@@ -340,12 +340,12 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
               {sessions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                   <Clock className="w-10 h-10 text-gray-300 mb-3" />
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-dark">
                     {lang === 'vi' ? 'Chưa có phiên chat nào' : 'No chat sessions yet'}
                   </p>
                   <button
                     onClick={createNewSession}
-                    className="mt-3 px-4 py-2 text-sm bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors"
+                    className="mt-3 px-4 py-2 text-sm bg-primary-50 text-primary-hover rounded-standard hover:bg-primary-100 transition-colors"
                   >
                     {t('Bắt đầu cuộc trò chuyện mới')}
                   </button>
@@ -358,24 +358,24 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                       onClick={() => loadSession(session.id)}
                       className={clsx(
                         'flex items-center gap-2 px-4 py-3 cursor-pointer transition-colors',
-                        'hover:bg-gray-50',
+                        'hover:bg-offwhite-1',
                         currentSessionId === session.id ? 'bg-primary-50' : ''
                       )}
                     >
                       <div className="flex-1 min-w-0">
                         <p className={clsx(
                           'text-sm font-medium truncate',
-                          currentSessionId === session.id ? 'text-primary-700' : 'text-gray-800'
+                          currentSessionId === session.id ? 'text-primary-hover' : 'text-charcoal'
                         )}>
                           {session.title}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-dark mt-0.5">
                           {formatDate(session.updated_at)} · {session.message_count} {lang === 'vi' ? 'tin' : 'msgs'}
                         </p>
                       </div>
                       <button
                         onClick={(e) => deleteSession(e, session.id)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-standard transition-colors opacity-0 group-hover:opacity-100"
                         title={t('Xóa')}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -391,10 +391,10 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
         {/* Chat Area */}
         {!showHistory && (
           <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-offwhite-1">
               {initialLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="w-8 h-8 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+                  <div className="w-8 h-8 border-2 border-primary-200 border-t-primary rounded-full animate-spin" />
                 </div>
               ) : (
                 <>
@@ -410,8 +410,8 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                         className={clsx(
                           'w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0',
                           msg.role === 'user'
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-primary-100 text-primary-600'
+                            ? 'bg-primary text-white'
+                            : 'bg-primary-100 text-primary'
                         )}
                       >
                         {msg.role === 'user' ? (
@@ -422,11 +422,11 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                       </div>
                       <div
                         className={clsx(
-                          'max-w-[80%] rounded-2xl px-3 py-2.5',
+                          'max-w-[80%] rounded-card px-3 py-2.5',
                           'transition-all duration-200',
                           msg.role === 'user'
-                            ? 'bg-primary-600 text-white rounded-tr-sm'
-                            : 'bg-white text-gray-800 rounded-tl-sm shadow-sm'
+                            ? 'bg-primary text-white rounded-tr-sm'
+                            : 'bg-white text-charcoal rounded-tl-sm shadow-elevated'
                         )}
                       >
                         <div className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -435,7 +435,7 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                         <div
                           className={clsx(
                             'text-[10px] mt-1',
-                            msg.role === 'user' ? 'text-primary-200 text-right' : 'text-gray-400'
+                            msg.role === 'user' ? 'text-primary-200 text-right' : 'text-gray-medium'
                           )}
                         >
                           {msg.timestamp.toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US', {
@@ -453,9 +453,9 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                       <button
                         onClick={() => handleAction(action.type)}
                         className={clsx(
-                          'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
-                          'bg-primary-600 text-white hover:bg-primary-700',
-                          'hover:scale-[1.02] active:scale-[0.98] shadow-sm'
+                          'px-4 py-2 rounded-card text-sm font-medium transition-all duration-200',
+                          'bg-primary text-white hover:bg-primary-hover',
+                          'hover:scale-[1.02] active:scale-[0.98] shadow-elevated'
                         )}
                       >
                         {action.label}
@@ -465,10 +465,10 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
 
                   {loading && (
                     <div className="flex gap-2">
-                      <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center">
+                      <div className="w-7 h-7 rounded-full bg-primary-100 text-primary flex items-center justify-center">
                         <Bot className="w-3.5 h-3.5" />
                       </div>
-                      <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                      <div className="bg-white rounded-card rounded-tl-sm px-4 py-3 shadow-elevated">
                         <div className="flex gap-1">
                           <div
                             className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
@@ -493,16 +493,16 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
 
             {/* Quick Suggestions */}
             {messages.length === 1 && (
-              <div className="px-4 pb-2 bg-gray-50">
+              <div className="px-4 pb-2 bg-offwhite-1">
                 <div className="flex flex-wrap gap-1.5">
                   {quickQuestions.map((q) => (
                     <button
                       key={q}
                       onClick={() => handleSuggestionClick(q)}
                       className={clsx(
-                        'px-3 py-1.5 text-xs bg-white text-gray-600 rounded-full',
-                        'border border-gray-200 hover:border-primary-300',
-                        'hover:bg-primary-50 hover:text-primary-700',
+                        'px-3 py-1.5 text-xs bg-white text-gray-dark rounded-full',
+                        'border border-gray-border hover:border-primary-300',
+                        'hover:bg-primary-50 hover:text-primary-hover',
                         'transition-all duration-200'
                       )}
                     >
@@ -514,7 +514,7 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
             )}
 
             {/* Input */}
-            <div className="p-4 bg-white border-t border-gray-200">
+            <div className="p-4 bg-white border-t border-gray-border">
               <div className="flex gap-2">
                 <input
                   ref={inputRef}
@@ -523,18 +523,18 @@ export default function ChatbotPanel({ onOpen, onClose }: ChatbotPanelProps) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder={t('Hỏi về tài chính cá nhân...')}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm transition-all"
+                  className="flex-1 px-4 py-2.5 border border-gray-border rounded-card focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm transition-all"
                   disabled={loading}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || loading}
                   className={clsx(
-                    'p-2.5 rounded-xl transition-all duration-200',
+                    'p-2.5 rounded-card transition-all duration-200',
                     'hover:scale-105 active:scale-95',
                     input.trim() && !loading
-                      ? 'bg-primary-600 text-white hover:bg-primary-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-primary text-white hover:bg-primary-hover'
+                      : 'bg-offwhite-2 text-gray-medium cursor-not-allowed'
                   )}
                 >
                   <Send className="w-5 h-5" />

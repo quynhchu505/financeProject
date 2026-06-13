@@ -55,12 +55,12 @@ export default function Reports() {
       {
         label: t('Thu'),
         data: reports.map((report) => report.income),
-        backgroundColor: '#22c55e',
+        backgroundColor: '#289E46', // Monarch income
       },
       {
         label: t('Chi'),
         data: reports.map((report) => report.expense),
-        backgroundColor: '#ef4444',
+        backgroundColor: '#CC2D24', // Monarch expense
       },
     ],
   }), [reports, t]);
@@ -71,16 +71,16 @@ export default function Reports() {
       {
         label: t('Dự kiến thu'),
         data: predictions.map((prediction) => prediction.predicted_income),
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34, 197, 94, 0.18)',
+        borderColor: '#289E46',
+        backgroundColor: 'rgba(40, 158, 70, 0.18)',
         fill: true,
         tension: 0.35,
       },
       {
         label: t('Dự kiến chi'),
         data: predictions.map((prediction) => prediction.predicted_expense),
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.18)',
+        borderColor: '#CC2D24',
+        backgroundColor: 'rgba(204, 45, 36, 0.18)',
         fill: true,
         tension: 0.35,
       },
@@ -99,99 +99,109 @@ export default function Reports() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+      <div className="flex h-[300px] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t('Báo cáo & Phân tích')}</h1>
-        <div className="flex flex-wrap gap-2">
-          <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-            <option value={3}>3 tháng</option>
-            <option value={6}>6 tháng</option>
-            <option value={12}>12 tháng</option>
+    <div className="space-y-xl font-ui">
+      <div className="flex flex-col gap-md md:flex-row md:items-center md:justify-between animate-fade-in-up">
+        <h1 className="font-display text-[32px] sm:text-[40px] tracking-tight text-charcoal">{t('Báo cáo & Phân tích')}</h1>
+        <div className="flex flex-wrap gap-sm">
+          <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className="rounded-standard border border-gray-border px-lg py-sm text-[15px] font-ui text-charcoal bg-white shadow-raised h-[40px] focus:border-primary focus:ring-[3px] focus:ring-primary/10 transition-all outline-none">
+            <option value={3}>{t('3 tháng')}</option>
+            <option value={6}>{t('6 tháng')}</option>
+            <option value={12}>{t('12 tháng')}</option>
           </select>
-          <button onClick={() => downloadReport('csv')} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+          <button onClick={() => downloadReport('csv')} className="inline-flex items-center gap-2 rounded-pill border border-gray-border px-lg py-sm text-[16px] font-normal text-charcoal hover:bg-offwhite-1 transition-colors shadow-raised h-[40px] bg-white">
             <Download className="h-4 w-4" />
             CSV
           </button>
-          <button onClick={() => downloadReport('pdf')} className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm text-white hover:bg-primary-700">
+          <button onClick={() => downloadReport('pdf')} className="inline-flex items-center gap-2 rounded-pill bg-primary px-lg py-sm text-[16px] font-normal text-white hover:bg-primary-hover active:bg-primary transition-colors h-[40px] shadow-raised">
             <Download className="h-4 w-4" />
             PDF
           </button>
         </div>
       </div>
 
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-standard border border-semantic-error/20 bg-semantic-error/5 px-lg py-md text-[14px] text-semantic-error animate-fade-in">{error}</div>}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-4 font-semibold text-gray-900">{t('Thu chi theo tháng')}</h2>
+      <div className="grid gap-xl xl:grid-cols-2 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div className="rounded-card bg-white border border-gray-border p-xl shadow-elevated hover:shadow-high transition-shadow">
+          <h2 className="mb-xl font-display text-[24px] text-charcoal">{t('Thu chi theo tháng')}</h2>
           <Bar
             data={incomeExpenseData}
             options={{
               responsive: true,
               plugins: {
-                legend: { position: 'top' },
+                legend: { position: 'top', labels: { font: { family: 'Outfit' }, color: '#22201D' } },
+                tooltip: { backgroundColor: '#22201D', titleFont: { family: 'Outfit' }, bodyFont: { family: 'Outfit' }, cornerRadius: 8, padding: 12 },
               },
+              scales: {
+                x: { grid: { display: false }, ticks: { font: { family: 'Outfit' }, color: '#686561' } },
+                y: { border: { dash: [4, 4] }, grid: { color: '#EAE7E3' }, ticks: { font: { family: 'Outfit' }, color: '#686561' } },
+              }
             }}
           />
         </div>
 
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-1 font-semibold text-gray-900">{t('Dự đoán dòng tiền (AI)')}</h2>
-          <p className="mb-4 text-sm text-gray-500">{t('Dự đoán thu chi các tháng tiếp theo')}</p>
+        <div className="rounded-card bg-white border border-gray-border p-xl shadow-elevated hover:shadow-high transition-shadow">
+          <h2 className="mb-xs font-display text-[24px] text-charcoal">{t('Dự đoán dòng tiền (AI)')}</h2>
+          <p className="mb-xl text-[14px] text-gray-dark font-ui">{t('Dự đoán thu chi các tháng tiếp theo')}</p>
           {predictions.length > 0 ? (
             <Line
               data={forecastData}
               options={{
                 responsive: true,
                 plugins: {
-                  legend: { position: 'top' },
+                  legend: { position: 'top', labels: { font: { family: 'Outfit' }, color: '#22201D' } },
+                  tooltip: { backgroundColor: '#22201D', titleFont: { family: 'Outfit' }, bodyFont: { family: 'Outfit' }, cornerRadius: 8, padding: 12 },
                 },
+                scales: {
+                  x: { grid: { display: false }, ticks: { font: { family: 'Outfit' }, color: '#686561' } },
+                  y: { border: { dash: [4, 4] }, grid: { color: '#EAE7E3' }, ticks: { font: { family: 'Outfit' }, color: '#686561' } },
+                }
               }}
             />
           ) : (
-            <div className="rounded-lg bg-gray-50 px-4 py-10 text-center text-sm text-gray-400">Chưa đủ dữ liệu để dự đoán</div>
+            <div className="rounded-standard bg-offwhite-1 border border-gray-border px-md py-2xl text-center text-[15px] text-gray-medium font-ui">{t('Chưa đủ dữ liệu để dự đoán')}</div>
           )}
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-xl animate-fade-in-up" style={{ animationDelay: '200ms' }}>
         {reports.map((report) => (
-          <div key={report.month} className="rounded-xl bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{report.month}</h3>
-              <span className={`font-semibold ${report.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div key={report.month} className="rounded-card bg-white border border-gray-border p-xl shadow-elevated hover:shadow-high transition-shadow">
+            <div className="flex items-center justify-between mb-lg">
+              <h3 className="font-ui font-medium text-[18px] text-charcoal">{report.month}</h3>
+              <span className={`font-ui font-medium text-[18px] ${report.net >= 0 ? 'text-income' : 'text-expense'}`}>
                 {report.net >= 0 ? '+' : ''}{formatCurrency(report.net)}
               </span>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg bg-green-50 p-3">
-                <div className="text-xs text-green-700">{t('Thu nhập')}</div>
-                <div className="mt-1 font-semibold text-green-700">{formatCurrency(report.income)}</div>
+            <div className="grid gap-md md:grid-cols-3">
+              <div className="rounded-standard bg-income/5 border border-income/20 p-md">
+                <div className="text-[13px] text-income/80 font-medium">{t('Thu nhập')}</div>
+                <div className="mt-xs font-display text-[20px] text-income tracking-tight">{formatCurrency(report.income)}</div>
               </div>
-              <div className="rounded-lg bg-red-50 p-3">
-                <div className="text-xs text-red-700">{t('Chi tiêu')}</div>
-                <div className="mt-1 font-semibold text-red-700">{formatCurrency(report.expense)}</div>
+              <div className="rounded-standard bg-expense/5 border border-expense/20 p-md">
+                <div className="text-[13px] text-expense/80 font-medium">{t('Chi tiêu')}</div>
+                <div className="mt-xs font-display text-[20px] text-expense tracking-tight">{formatCurrency(report.expense)}</div>
               </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <div className="text-xs text-gray-500">{t('Thu nhập ròng')}</div>
-                <div className="mt-1 font-semibold text-gray-800">{formatCurrency(report.net)}</div>
+              <div className="rounded-standard bg-offwhite-2 border border-gray-border p-md">
+                <div className="text-[13px] text-gray-dark font-medium">{t('Thu nhập ròng')}</div>
+                <div className="mt-xs font-display text-[20px] text-charcoal tracking-tight">{formatCurrency(report.net)}</div>
               </div>
             </div>
             {report.categories.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-xl space-y-sm">
                 {report.categories.map((category) => (
-                  <div key={category.category_id} className="flex items-center gap-3 text-sm">
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: category.category_color }} />
-                    <span className="flex-1 text-gray-700">{category.category_name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(category.total_amount)}</span>
-                    <span className="w-16 text-right text-gray-500">{category.percentage}%</span>
+                  <div key={category.category_id} className="flex items-center gap-md text-[14px] bg-offwhite-1 rounded-standard p-sm border border-gray-border/50">
+                    <div className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: category.category_color }} />
+                    <span className="flex-1 text-charcoal font-medium">{category.category_name}</span>
+                    <span className="font-medium text-charcoal">{formatCurrency(category.total_amount)}</span>
+                    <span className="w-16 text-right text-gray-dark">{category.percentage}%</span>
                   </div>
                 ))}
               </div>
