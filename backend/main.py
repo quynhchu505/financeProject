@@ -26,7 +26,7 @@ from app.api import (
     transactions_router,
 )
 from app.core.config import settings
-from app.core.database import SessionLocal
+from app.core.database import Base, SessionLocal, engine
 from app.core.logging import configure_logging, correlation_id_ctx, get_logger
 from app.core.metrics import REQUEST_COUNT, REQUEST_DURATION, metrics_response
 from app.schemas.schemas import ErrorResponse, HealthComponent, HealthResponse
@@ -95,14 +95,24 @@ def build_error_response(
 
 @app.on_event("startup")
 def startup_event():
-    from alembic.config import Config
     from alembic import command
+    from alembic.config import Config
     from pathlib import Path
 
     backend_dir = Path(__file__).parent
     alembic_cfg = Config(str(backend_dir / "alembic.ini"))
     alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
-    command.upgrade(alembic_cfg, "head")
+    try:
+        command.upgrade(alembic_cfg, "head")
+    except Exception:
+        logger.exception("Database migration failed during startup")
+        try:
+            from app.models import models  # noqa: F401
+
+            Base.metadata.create_all(bind=engine)
+            logger.warning("Created missing database tables with SQLAlchemy metadata fallback")
+        except Exception:
+            logger.exception("Database metadata fallback failed; continuing startup")
 
     global background_worker
     if background_worker is None and settings.ENABLE_BACKGROUND_JOBS:
