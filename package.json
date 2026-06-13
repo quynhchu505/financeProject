@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/vankhangk4/H-TH-NG-QU-N-L-V-PH-N-T-CH-T-I-CH-NH-C-NH-N-TH-NG-MINH#readme",
   "dependencies": {
-    "docx": "^9.6.1"
+    "@vitejs/plugin-react": "^6.0.2",
+    "docx": "^9.6.1",
+    "vite": "^8.0.16"
   }
 }

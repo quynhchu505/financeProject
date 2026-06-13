@@ -5,6 +5,7 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
+packages = ["cargo", "freetype", "glibcLocales", "libiconv", "libxcrypt", "rustc"]
 
 [workflows]
 runButton = "Project"
@@ -63,3 +64,17 @@ build = ["bash", "-c", "pip install -r requirements.txt && cd frontend && npm ci
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
+
+[userenv]
+
+[userenv.shared]
+ENVIRONMENT = "development"
+DEBUG = "false"
+LOG_LEVEL = "INFO"
+ENABLE_METRICS = "true"
+ENABLE_BACKGROUND_JOBS = "true"
+LLM_PROVIDER = "groq"
+CORS_ORIGINS = "*"
+ACCESS_TOKEN_EXPIRE_MINUTES = "30"
+REFRESH_TOKEN_EXPIRE_DAYS = "7"
+ALGORITHM = "HS256"
