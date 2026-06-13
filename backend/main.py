@@ -7,7 +7,7 @@ import redis
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
@@ -64,6 +64,13 @@ app.include_router(alerts_router, prefix=settings.API_V1_STR)
 UPLOADS_DIR = Path(__file__).parent / "uploads"
 (UPLOADS_DIR / "avatars").mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
+FRONTEND_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
+FRONTEND_INDEX = FRONTEND_DIST_DIR / "index.html"
+
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_ASSETS_DIR)), name="frontend-assets")
 
 background_worker = None
 
@@ -161,6 +168,8 @@ async def request_middleware(request: Request, call_next):
 
 @app.get("/")
 def root():
+    if FRONTEND_INDEX.exists():
+        return FileResponse(FRONTEND_INDEX)
     return {"message": "Finance Manager API", "version": settings.VERSION}
 
 
@@ -214,3 +223,13 @@ def health():
 def metrics():
     payload, content_type = metrics_response()
     return Response(content=payload, media_type=content_type)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def serve_frontend(full_path: str):
+    protected_paths = ("api", "uploads", "health", "metrics")
+    if full_path in protected_paths or full_path.startswith(tuple(f"{path}/" for path in protected_paths)):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if FRONTEND_INDEX.exists():
+        return FileResponse(FRONTEND_INDEX)
+    raise HTTPException(status_code=404, detail="Frontend build not found")
