@@ -9,12 +9,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-  },
   server: {
-    port: 3000,
+    port: 5000,
+    host: '0.0.0.0',
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
