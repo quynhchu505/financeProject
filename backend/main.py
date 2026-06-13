@@ -99,7 +99,9 @@ def startup_event():
     from alembic import command
     from pathlib import Path
 
-    alembic_cfg = Config(str(Path(__file__).parent / "alembic.ini"))
+    backend_dir = Path(__file__).parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
     command.upgrade(alembic_cfg, "head")
 
     global background_worker
