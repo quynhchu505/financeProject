@@ -40,7 +40,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-white rounded-card flex items-center justify-center mx-auto mb-md shadow-elevated border border-gray-border">
             <Wallet className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="font-display text-[40px] tracking-tight text-charcoal">{t('Monarch')}</h1>
+          <h1 className="font-display text-[40px] tracking-tight text-charcoal">Finance</h1>
           <p className="text-gray-dark mt-xs text-[16px]">{t('Quản lý tài chính cá nhân thông minh')}</p>
         </div>
 

@@ -55,12 +55,12 @@ export default function Reports() {
       {
         label: t('Thu'),
         data: reports.map((report) => report.income),
-        backgroundColor: '#289E46', // Monarch income
+        backgroundColor: '#289E46', // Finance income
       },
       {
         label: t('Chi'),
         data: reports.map((report) => report.expense),
-        backgroundColor: '#CC2D24', // Monarch expense
+        backgroundColor: '#CC2D24', // Finance expense
       },
     ],
   }), [reports, t]);

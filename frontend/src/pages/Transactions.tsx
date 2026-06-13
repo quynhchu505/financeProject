@@ -496,7 +496,7 @@ export default function Transactions() {
         )}
       </section>
 
-      {/* Modals are adapted to use Monarch styling via Modal component updates */}
+      {/* Modals are adapted to use Finance styling via Modal component updates */}
       {showModal && (
         <Modal title={editingTransaction ? t('Lưu thay đổi') : t('Thêm giao dịch')} onClose={resetTransactionModal}>
           <form onSubmit={handleSubmit} className="space-y-lg font-ui">
