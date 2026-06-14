@@ -1,4 +1,19 @@
-const API_BASE = '/api/v1';
+// Resolve API base from Vite env or fall back to same-origin `/api/v1`.
+// Accepts either a domain (`https://api.example.com`) or a full path
+// (e.g. `https://api.example.com/api/v1`) and normalizes it.
+const _VITE_API_RAW = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const _VITE_API = _VITE_API_RAW.replace(/\/+$/g, '');
+let API_BASE: string;
+if (_VITE_API) {
+  // If env already contains an /api path, use it as provided.
+  if (_VITE_API.match(/\/api(\/|$)/)) {
+    API_BASE = _VITE_API;
+  } else {
+    API_BASE = `${_VITE_API}/api/v1`;
+  }
+} else {
+  API_BASE = '/api/v1';
+}
 
 type TokenPayload = {
   access_token: string;
