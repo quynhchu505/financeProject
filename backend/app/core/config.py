@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OPENAI_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
     LLM_PROVIDER: str = "ollama"  # "groq" or "ollama"
     ALLOW_EXTERNAL_FINANCE_CONTEXT: bool = False
 
@@ -52,7 +53,11 @@ class Settings(BaseSettings):
     EMAILS_FROM: str = "noreply@financemanager.com"
 
     model_config = SettingsConfigDict(
-        env_file=(str(BASE_DIR / ".env"), str(BASE_DIR.parent / ".env.production")),
+        env_file=(
+            str(BASE_DIR.parent / ".env"),
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR.parent / ".env.production"),
+        ),
         case_sensitive=True,
         extra="ignore",
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import desc, func
@@ -8,22 +9,13 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.models import Alert, Budget, Category, Transaction, TransactionType
 
-LANGCHAIN_GROQ_AVAILABLE = False
-LANGCHAIN_OLLAMA_AVAILABLE = False
-
 try:
-    from langchain_groq import ChatGroq
+    from groq import Groq
 
-    LANGCHAIN_GROQ_AVAILABLE = True
-except ImportError:
-    ChatGroq = None
-
-try:
-    from langchain_community.llms import Ollama
-
-    LANGCHAIN_OLLAMA_AVAILABLE = True
-except ImportError:
-    Ollama = None
+    GROQ_AVAILABLE = True
+except ImportError:  # pragma: no cover - exercised when dependency is absent
+    Groq = None
+    GROQ_AVAILABLE = False
 
 
 FINANCE_KNOWLEDGE = """
@@ -46,48 +38,45 @@ def utcnow() -> datetime:
 
 
 class FinanceChatbot:
+    """Finance chatbot wrapper that talks to Groq directly."""
+
     def __init__(self, user_id: int):
         self.user_id = user_id
-        self.provider = settings.LLM_PROVIDER
-        self.llm = self._setup_llm()
+        self.logger = logging.getLogger(__name__)
+        self.client = self._setup_client()
 
-    def _setup_llm(self):
-        if self.provider == "groq" and LANGCHAIN_GROQ_AVAILABLE and settings.GROQ_API_KEY:
-            return ChatGroq(
-                api_key=settings.GROQ_API_KEY,
-                model="llama-3.1-8b-instant",
-                temperature=0.4,
+    def _setup_client(self):
+        if not GROQ_AVAILABLE:
+            self.logger.warning(
+                "Groq SDK is not installed; chatbot will use fallback responses",
+                extra={"extra_data": {"user_id": self.user_id}},
             )
-        if self.provider == "ollama" and LANGCHAIN_OLLAMA_AVAILABLE:
-            return Ollama(
-                model="llama3",
-                base_url=settings.OLLAMA_BASE_URL,
-                temperature=0.4,
+            return None
+
+        if settings.LLM_PROVIDER != "groq":
+            self.logger.info(
+                "LLM_PROVIDER is not set to groq; chatbot will use fallback responses",
+                extra={"extra_data": {"user_id": self.user_id, "provider": settings.LLM_PROVIDER}},
             )
-        if settings.GROQ_API_KEY and LANGCHAIN_GROQ_AVAILABLE:
-            return ChatGroq(
-                api_key=settings.GROQ_API_KEY,
-                model="llama-3.1-8b-instant",
-                temperature=0.4,
+            return None
+
+        if not settings.GROQ_API_KEY:
+            self.logger.warning(
+                "GROQ_API_KEY is missing; chatbot will use fallback responses",
+                extra={"extra_data": {"user_id": self.user_id}},
             )
-        if LANGCHAIN_OLLAMA_AVAILABLE:
-            return Ollama(
-                model="llama3",
-                base_url=settings.OLLAMA_BASE_URL,
-                temperature=0.4,
-            )
-        return None
+            return None
+
+        return Groq(api_key=settings.GROQ_API_KEY)
 
     def _can_send_personal_context(self) -> bool:
-        if self.provider == "ollama":
-            return True
-        return settings.ALLOW_EXTERNAL_FINANCE_CONTEXT
+        return bool(settings.ALLOW_EXTERNAL_FINANCE_CONTEXT)
 
     def _build_user_context(self) -> str:
         if not self._can_send_personal_context():
             return (
                 "Khong gui du lieu tai chinh ca nhan vi provider hien tai duoc coi la external. "
-                "Chi duoc tra loi dua tren kien thuc tai chinh chung."
+                "Chi tra loi dua tren kien thuc tai chinh chung."
             )
 
         db = SessionLocal()
@@ -147,34 +136,55 @@ class FinanceChatbot:
         finally:
             db.close()
 
-    def _build_prompt(self, message: str) -> str:
+    def _build_messages(self, message: str) -> list[dict[str, str]]:
         context = self._build_user_context()
-        return (
-            "Ban la tro ly tai chinh ca nhan, tra loi bang tieng Viet, ngan gon, thuc te, "
-            "khong dua ra loi khuyen dau tu mang tinh cam ket.\n\n"
+        system_prompt = (
+            "Ban la tro ly tai chinh ca nhan. Tra loi bang tieng Viet, ngan gon, thuc te, "
+            "va khong dua ra loi khuyen dau tu mang tinh cam ket.\n\n"
             f"Kien thuc nen:\n{FINANCE_KNOWLEDGE}\n\n"
-            f"Ngu canh nguoi dung:\n{context}\n\n"
-            f"Cau hoi:\n{message}\n\n"
-            "Tra loi:"
+            f"Ngu canh nguoi dung:\n{context}"
         )
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message},
+        ]
 
     def chat(self, message: str) -> dict:
         try:
-            prompt = self._build_prompt(message)
-        except Exception:
+            messages = self._build_messages(message)
+        except Exception as exc:
+            self.logger.exception("Failed building prompt", exc_info=exc, extra={"extra_data": {"user_id": self.user_id}})
             return {"response": self._fallback_response(message), "sources": []}
 
-        if self.llm is None:
+        if self.client is None:
+            self.logger.warning("Groq client not configured; returning fallback response", extra={"extra_data": {"user_id": self.user_id}})
             return {"response": self._fallback_response(message), "sources": []}
 
         try:
-            result = self.llm.invoke(prompt)
-            if hasattr(result, "content"):
-                return {"response": result.content, "sources": []}
+            result = self.client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=messages,
+                temperature=0.4,
+            )
+        except Exception as exc:
+            preview = message[:500] + "..." if len(message) > 500 else message
+            self.logger.exception(
+                "Groq invocation failed",
+                exc_info=exc,
+                extra={"extra_data": {"user_id": self.user_id, "message_preview": preview}},
+            )
+            return {"response": self._fallback_response(message), "sources": []}
+
+        try:
+            choice = result.choices[0] if getattr(result, "choices", None) else None
+            content = None if choice is None else getattr(getattr(choice, "message", None), "content", None)
+            if content:
+                return {"response": content, "sources": []}
             if isinstance(result, str):
                 return {"response": result, "sources": []}
             return {"response": str(result), "sources": []}
-        except Exception:
+        except Exception as exc:
+            self.logger.exception("Failed to parse Groq result", exc_info=exc, extra={"extra_data": {"user_id": self.user_id}})
             return {"response": self._fallback_response(message), "sources": []}
 
     def _fallback_response(self, message: str) -> str:

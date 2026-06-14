@@ -1,15 +1,16 @@
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+
+from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.metrics import CHATBOT_DURATION, record_duration
 from app.core.rate_limit import rate_limit
-from app.models.models import User, ChatHistory, ChatSession
+from app.models.models import ChatHistory, ChatSession, User
 from app.schemas.schemas import ChatMessage, ChatResponse
 from app.services.chatbot import FinanceChatbot
-from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 logger = logging.getLogger(__name__)
@@ -30,20 +31,16 @@ def chat(
         chatbot = FinanceChatbot(current_user.id)
         with record_duration(CHATBOT_DURATION):
             result = chatbot.chat(data.message)
-    except Exception as exc:
+    except Exception:
         logger.exception("Chatbot service failed", extra={"extra_data": {"user_id": current_user.id}})
         result = {
-            "response": (
-                "Xin lỗi, hiện tại trợ lý AI đang bận. Vui lòng thử lại sau vài giây."
-            ),
+            "response": "Xin lỗi, hiện tại trợ lý AI đang bận. Vui lòng thử lại sau vài giây.",
             "sources": [],
         }
 
     if not isinstance(result, dict) or "response" not in result:
         result = {
-            "response": (
-                "Xin lỗi, hiện tại trợ lý AI không thể trả lời. Vui lòng thử lại sau vài giây."
-            ),
+            "response": "Xin lỗi, hiện tại trợ lý AI không thể trả lời. Vui lòng thử lại sau vài giây.",
             "sources": [],
         }
 
@@ -67,6 +64,8 @@ def chat(
             )
             if not session:
                 title = data.message[:50].strip() if len(data.message) > 50 else data.message.strip()
+                if not title:
+                    title = "Phiên mới"
                 session = ChatSession(user_id=current_user.id, title=title)
                 db.add(session)
                 db.flush()
@@ -83,7 +82,10 @@ def chat(
         db.add(history)
         db.commit()
     except Exception:
-        logger.exception("Failed to save chatbot session/history", extra={"extra_data": {"user_id": current_user.id, "session_id": session_id}})
+        logger.exception(
+            "Failed to save chatbot session/history",
+            extra={"extra_data": {"user_id": current_user.id, "session_id": session_id}},
+        )
         db.rollback()
 
     return ChatResponse(
