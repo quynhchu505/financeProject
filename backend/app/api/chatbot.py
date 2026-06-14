@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -10,6 +12,7 @@ from app.services.chatbot import FinanceChatbot
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
+logger = logging.getLogger(__name__)
 
 
 def utcnow() -> datetime:
@@ -23,52 +26,68 @@ def chat(
     current_user: User = Depends(get_current_user),
 ):
     """Chat with the financial advisor bot."""
-    chatbot = FinanceChatbot(current_user.id)
-    with record_duration(CHATBOT_DURATION):
-        result = chatbot.chat(data.message)
+    try:
+        chatbot = FinanceChatbot(current_user.id)
+        with record_duration(CHATBOT_DURATION):
+            result = chatbot.chat(data.message)
+    except Exception as exc:
+        logger.exception("Chatbot service failed", extra={"extra_data": {"user_id": current_user.id}})
+        result = {
+            "response": (
+                "Xin lỗi, hiện tại trợ lý AI đang bận. Vui lòng thử lại sau vài giây."
+            ),
+            "sources": [],
+        }
 
+    if not isinstance(result, dict) or "response" not in result:
+        result = {
+            "response": (
+                "Xin lỗi, hiện tại trợ lý AI không thể trả lời. Vui lòng thử lại sau vài giây."
+            ),
+            "sources": [],
+        }
+
+    response_text = str(result["response"])
     session_id = data.session_id
 
-    # If no session_id provided, create a new session automatically
-    if session_id is None:
-        # Auto-title from first 50 chars of message
-        title = data.message[:50].strip() if len(data.message) > 50 else data.message.strip()
-        if not title:
-            title = "Phiên mới"
-        session = ChatSession(user_id=current_user.id, title=title)
-        db.add(session)
-        db.flush()
-        session_id = session.id
-    else:
-        # Verify session belongs to user
-        session = (
-            db.query(ChatSession)
-            .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
-            .first()
-        )
-        if not session:
-            # Fall back: create a new session
+    try:
+        if session_id is None:
             title = data.message[:50].strip() if len(data.message) > 50 else data.message.strip()
+            if not title:
+                title = "Phiên mới"
             session = ChatSession(user_id=current_user.id, title=title)
             db.add(session)
             db.flush()
             session_id = session.id
         else:
-            # Update session updated_at
-            session.updated_at = utcnow()
+            session = (
+                db.query(ChatSession)
+                .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
+                .first()
+            )
+            if not session:
+                title = data.message[:50].strip() if len(data.message) > 50 else data.message.strip()
+                session = ChatSession(user_id=current_user.id, title=title)
+                db.add(session)
+                db.flush()
+                session_id = session.id
+            else:
+                session.updated_at = utcnow()
 
-    # Save to history with session_id
-    history = ChatHistory(
-        user_id=current_user.id,
-        session_id=session_id,
-        message=data.message,
-        response=result["response"],
-    )
-    db.add(history)
-    db.commit()
+        history = ChatHistory(
+            user_id=current_user.id,
+            session_id=session_id,
+            message=data.message,
+            response=response_text,
+        )
+        db.add(history)
+        db.commit()
+    except Exception:
+        logger.exception("Failed to save chatbot session/history", extra={"extra_data": {"user_id": current_user.id, "session_id": session_id}})
+        db.rollback()
 
     return ChatResponse(
-        response=result["response"],
+        response=response_text,
         sources=result.get("sources"),
         session_id=session_id,
     )
