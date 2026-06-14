@@ -159,7 +159,11 @@ class FinanceChatbot:
         )
 
     def chat(self, message: str) -> dict:
-        prompt = self._build_prompt(message)
+        try:
+            prompt = self._build_prompt(message)
+        except Exception:
+            return {"response": self._fallback_response(message), "sources": []}
+
         if self.llm is None:
             return {"response": self._fallback_response(message), "sources": []}
 
