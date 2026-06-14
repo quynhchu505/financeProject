@@ -52,22 +52,21 @@ class FinanceChatbot:
                 extra={"extra_data": {"user_id": self.user_id}},
             )
             return None
-
-        if settings.LLM_PROVIDER != "groq":
-            self.logger.info(
-                "LLM_PROVIDER is not set to groq; chatbot will use fallback responses",
-                extra={"extra_data": {"user_id": self.user_id, "provider": settings.LLM_PROVIDER}},
-            )
-            return None
-
         if not settings.GROQ_API_KEY:
             self.logger.warning(
                 "GROQ_API_KEY is missing; chatbot will use fallback responses",
                 extra={"extra_data": {"user_id": self.user_id}},
             )
             return None
-
-        return Groq(api_key=settings.GROQ_API_KEY)
+        try:
+            return Groq(api_key=settings.GROQ_API_KEY)
+        except Exception as exc:
+            self.logger.exception(
+                "Failed to initialize Groq client",
+                exc_info=exc,
+                extra={"extra_data": {"user_id": self.user_id, "provider": "groq"}},
+            )
+            return None
 
     def _can_send_personal_context(self) -> bool:
         return bool(settings.ALLOW_EXTERNAL_FINANCE_CONTEXT)
@@ -75,8 +74,8 @@ class FinanceChatbot:
     def _build_user_context(self) -> str:
         if not self._can_send_personal_context():
             return (
-                "Khong gui du lieu tai chinh ca nhan vi provider hien tai duoc coi la external. "
-                "Chi tra loi dua tren kien thuc tai chinh chung."
+                "Không gửi dữ liệu tài chính cá nhân vì provider hiện tại được coi là external. "
+                "Chỉ trả lời dựa trên kiến thức tài chính chung."
             )
 
         db = SessionLocal()
@@ -126,12 +125,12 @@ class FinanceChatbot:
             top_lines = "\n".join([f"- {name}: {float(total):,.0f} VND" for name, total in top_categories]) or "- Chua co"
 
             return (
-                f"Tom tat tai chinh thang nay:\n"
-                f"- Tong thu: {float(income):,.0f} VND\n"
-                f"- Tong chi: {float(expense):,.0f} VND\n"
-                f"- So ngan sach dang theo doi: {active_budget_count}\n"
-                f"- So canh bao dang mo: {open_alert_count}\n"
-                f"- Top danh muc chi tieu:\n{top_lines}"
+                f"Tóm tắt tài chính tháng này:\n"
+                f"- Tổng thu: {float(income):,.0f} VND\n"
+                f"- Tổng chi: {float(expense):,.0f} VND\n"
+                f"- Số ngân sách đang theo dõi: {active_budget_count}\n"
+                f"- Số cảnh báo đang mở: {open_alert_count}\n"
+                f"- Top danh mục chi tiêu:\n{top_lines}"
             )
         finally:
             db.close()
@@ -157,7 +156,10 @@ class FinanceChatbot:
             return {"response": self._fallback_response(message), "sources": []}
 
         if self.client is None:
-            self.logger.warning("Groq client not configured; returning fallback response", extra={"extra_data": {"user_id": self.user_id}})
+            self.logger.warning(
+                "LLM client not configured; returning fallback response",
+                extra={"extra_data": {"user_id": self.user_id, "provider": "groq"}},
+            )
             return {"response": self._fallback_response(message), "sources": []}
 
         try:
@@ -169,9 +171,9 @@ class FinanceChatbot:
         except Exception as exc:
             preview = message[:500] + "..." if len(message) > 500 else message
             self.logger.exception(
-                "Groq invocation failed",
+                "LLM invocation failed",
                 exc_info=exc,
-                extra={"extra_data": {"user_id": self.user_id, "message_preview": preview}},
+                extra={"extra_data": {"user_id": self.user_id, "provider": "groq", "message_preview": preview}},
             )
             return {"response": self._fallback_response(message), "sources": []}
 
@@ -182,29 +184,35 @@ class FinanceChatbot:
                 return {"response": content, "sources": []}
             if isinstance(result, str):
                 return {"response": result, "sources": []}
+            if hasattr(result, "content") and result.content:
+                return {"response": result.content, "sources": []}
             return {"response": str(result), "sources": []}
         except Exception as exc:
-            self.logger.exception("Failed to parse Groq result", exc_info=exc, extra={"extra_data": {"user_id": self.user_id}})
+            self.logger.exception(
+                "Failed to parse LLM result",
+                exc_info=exc,
+                extra={"extra_data": {"user_id": self.user_id, "provider": "groq"}},
+            )
             return {"response": self._fallback_response(message), "sources": []}
 
     def _fallback_response(self, message: str) -> str:
         msg_lower = message.lower()
         if any(kw in msg_lower for kw in ["tiết kiệm", "tiet kiem", "save"]):
             return (
-                "De tiet kiem hieu qua, ban nen ap dung quy tac 50/30/20, "
-                "chuyen tien tiet kiem ngay khi nhan thu nhap va theo doi nhung khoan chi lap lai."
+                "Để tiết kiệm hiệu quả, bạn nên áp dụng quy tắc 50/30/20, "
+                "chuyển tiền tiết kiệm ngay khi nhận thu nhập và theo dõi những khoản chi lặp lại."
             )
         if any(kw in msg_lower for kw in ["đầu tư", "dau tu", "invest"]):
             return (
-                "Neu moi bat dau, hay uu tien quy khan cap, tranh no xau, "
-                "sau do moi xem cac kenh dau tu da dang va phu hop muc rui ro cua ban."
+                "Nếu mới bắt đầu, hãy ưu tiên quỹ khẩn cấp, tránh nợ xấu, "
+                "sau đó mới xem các kênh đầu tư đa dạng và phù hợp mức rủi ro của bạn."
             )
         if any(kw in msg_lower for kw in ["ngân sách", "ngan sach", "budget", "chi tiêu", "chi tieu"]):
             return (
-                "Ban nen dat han muc theo danh muc, theo doi chi phi hang ngay va danh gia lai moi cuoi thang "
-                "de cat bo cac khoan vuot nhu cau."
+                "Bạn nên đặt hạn mức theo danh mục, theo dõi chi phí hằng ngày và đánh giá lại mỗi cuối tháng "
+                "để cắt bỏ các khoản vượt nhu cầu."
             )
         return (
-            "Toi co the ho tro ve ngan sach, tiet kiem, quy khan cap, quan ly no va muc tieu tai chinh. "
-            "Ban hay noi ro hon muc ban muon hoi."
+            "Tôi có thể hỗ trợ về ngân sách, tiết kiệm, quỹ khẩn cấp, quản lý nợ và mục tiêu tài chính. "
+            "Bạn hãy nói rõ hơn mục bạn muốn hỏi."
         )

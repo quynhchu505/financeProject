@@ -35,7 +35,6 @@ class _FakeGroqClient:
 def test_finance_chatbot_uses_groq(monkeypatch):
     monkeypatch.setattr(chatbot_module, "GROQ_AVAILABLE", True)
     monkeypatch.setattr(chatbot_module, "Groq", _FakeGroqClient)
-    monkeypatch.setattr(chatbot_module.settings, "LLM_PROVIDER", "groq")
     monkeypatch.setattr(chatbot_module.settings, "GROQ_API_KEY", "test-key")
     monkeypatch.setattr(chatbot_module.settings, "GROQ_MODEL", "test-model")
     monkeypatch.setattr(chatbot_module.settings, "ALLOW_EXTERNAL_FINANCE_CONTEXT", False)

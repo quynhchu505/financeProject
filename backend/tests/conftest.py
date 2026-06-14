@@ -13,7 +13,7 @@ if str(BACKEND_ROOT) not in sys.path:
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 os.environ["REDIS_URL"] = "redis://localhost:6379"
 os.environ["SECRET_KEY"] = "test-secret-key"
-os.environ["LLM_PROVIDER"] = "ollama"
+os.environ["LLM_PROVIDER"] = "groq"
 os.environ["ENABLE_BACKGROUND_JOBS"] = "false"
 
 from fastapi.testclient import TestClient

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: str = "llama-3.1-8b-instant"
-    LLM_PROVIDER: str = "ollama"  # "groq" or "ollama"
+    LLM_PROVIDER: str = "groq"
     ALLOW_EXTERNAL_FINANCE_CONTEXT: bool = False
 
     # Runtime
